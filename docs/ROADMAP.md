@@ -35,7 +35,7 @@
 - [x] Wrap root `layout.tsx` with `Web3Provider`
 - [x] Create `WalletButton` component using RainbowKit's `ConnectButton`
 - [x] Create `Navbar` with wallet button
-- [ ] Create `Sidebar` with navigation links
+- [x] Create `Sidebar` with navigation links
 - [ ] Create `src/lib/chains.ts` with all supported chains and tokens
 - [ ] Create `src/types/index.ts` with all TypeScript types
 - [ ] Create `src/lib/utils.ts` with `cn()`, `formatAmount()`, `shortenAddress()`
