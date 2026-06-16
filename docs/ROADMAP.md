@@ -41,20 +41,20 @@
 - [x] Create `src/lib/utils.ts` with `cn()`, `formatAmount()`, `shortenAddress()`
 - [x] Setup Prisma: `npx prisma init`, write schema, `npx prisma db push`
 - [x] Create Prisma singleton in `src/lib/db.ts`
-- [ ] Create Dashboard page (`src/app/page.tsx`):
+- [x] Create Dashboard page (`src/app/page.tsx`):
   - Display connected wallet address
   - Display ETH balance via `useBalance()`
   - Display top ERC-20 balances via `useReadContract()`
   - Display portfolio USD value via `/api/prices`
-- [ ] Create `/api/prices` route (CoinGecko proxy with 60s cache)
-- [ ] Create `useTokenPrices` hook
+- [x] Create `/api/prices` route (CoinGecko proxy with 60s cache)
+- [x] Create `useTokenPrices` hook
 
 ### Acceptance Criteria
-- [ ] `npm run dev` starts without errors
-- [ ] MetaMask can connect and disconnect
-- [ ] Dashboard shows real ETH balance from connected wallet
-- [ ] Dashboard shows USD value of holdings
-- [ ] TypeScript compiles with zero errors (`npx tsc --noEmit`)
+- [x] `npm run dev` starts without errors
+- [x] MetaMask can connect and disconnect
+- [x] Dashboard shows real ETH balance from connected wallet
+- [x] Dashboard shows USD value of holdings
+- [x] TypeScript compiles with zero errors (`npx tsc --noEmit`)
 
 ---
 
