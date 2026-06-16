@@ -40,7 +40,7 @@
 - [x] Create `src/types/index.ts` with all TypeScript types
 - [x] Create `src/lib/utils.ts` with `cn()`, `formatAmount()`, `shortenAddress()`
 - [x] Setup Prisma: `npx prisma init`, write schema, `npx prisma db push`
-- [ ] Create Prisma singleton in `src/lib/db.ts`
+- [x] Create Prisma singleton in `src/lib/db.ts`
 - [ ] Create Dashboard page (`src/app/page.tsx`):
   - Display connected wallet address
   - Display ETH balance via `useBalance()`
