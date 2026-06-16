@@ -39,7 +39,7 @@
 - [x] Create `src/lib/chains.ts` with all supported chains and tokens
 - [x] Create `src/types/index.ts` with all TypeScript types
 - [x] Create `src/lib/utils.ts` with `cn()`, `formatAmount()`, `shortenAddress()`
-- [ ] Setup Prisma: `npx prisma init`, write schema, `npx prisma db push`
+- [x] Setup Prisma: `npx prisma init`, write schema, `npx prisma db push`
 - [ ] Create Prisma singleton in `src/lib/db.ts`
 - [ ] Create Dashboard page (`src/app/page.tsx`):
   - Display connected wallet address

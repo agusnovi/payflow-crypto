@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Records every user action: onramp, swap, bridge, or workflow execution
+model Transaction {
+  id            String    @id @default(cuid())
+  type          String    // TransactionType: "onramp" | "swap" | "bridge" | "workflow"
+  status        String    // TransactionStatus: "pending" | "processing" | "completed" | "failed"
+  fromChain     String    // chain name e.g. "Ethereum"
+  toChain       String?   // null for onramp and single-chain swap
+  fromToken     String    // token symbol or fiat currency e.g. "ETH", "USD"
+  toToken       String?   // null when not applicable
+  fromAmount    String    // always string to preserve precision
+  toAmount      String?   // string or null
+  txHash        String?   // simulated tx hash
+  walletAddress String    // 0x... Ethereum address
+  metadata      String?   // JSON string for extra fields
+  workflowId    String?   // set if this tx is part of a workflow
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workflow      WorkflowExecution? @relation(fields: [workflowId], references: [id])
+
+  @@index([walletAddress])
+  @@index([walletAddress, type])
+  @@index([walletAddress, status])
+  @@index([workflowId])
+}
+
+// Saved workflow configurations the user can re-use
+model WorkflowTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  description   String   @default("")
+  steps         String   // JSON: WorkflowStep[]
+  walletAddress String
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([walletAddress])
+}
+
+// Records a single run of a workflow
+model WorkflowExecution {
+  id            String    @id @default(cuid())
+  name          String
+  status        String    // WorkflowStatus: "draft" | "running" | "completed" | "failed"
+  steps         String    // JSON: WorkflowStep[] with runtime status per step
+  walletAddress String
+  failedAt      String?   // step ID of the failed step
+  completedAt   DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  transactions  Transaction[]
+
+  @@index([walletAddress])
+  @@index([status])
+}
