@@ -24,14 +24,14 @@
 
 ### Tasks
 
-- [ ] Initialize Next.js 15 project with TypeScript
+- [x] Initialize Next.js 15 project with TypeScript
   ```bash
   npx create-next-app@latest payflow-crypto --typescript --tailwind --app --src-dir
   ```
-- [ ] Install all dependencies from `package.json`
-- [ ] Setup `.env.local` with all API keys
-- [ ] Configure wagmi + RainbowKit in `src/lib/wagmi.ts`
-- [ ] Create `Web3Provider` in `src/components/providers/Web3Provider.tsx`
+- [x] Install all dependencies from `package.json`
+- [x] Setup `.env.local` with all API keys
+- [x] Configure wagmi + RainbowKit in `src/lib/wagmi.ts`
+- [x] Create `Web3Provider` in `src/components/providers/Web3Provider.tsx`
 - [ ] Wrap root `layout.tsx` with `Web3Provider`
 - [ ] Create `WalletButton` component using RainbowKit's `ConnectButton`
 - [ ] Create `Navbar` with wallet button
