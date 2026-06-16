@@ -1,10 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useAccount, useBalance, useReadContracts } from "wagmi"
 import { formatUnits } from "viem"
 import { Wallet } from "lucide-react"
 
 import { useTokenPrices } from "@/hooks/useTokenPrices"
+import { WalletButton } from "@/components/wallet/WalletButton"
 import {
   COMMON_TOKENS,
   NATIVE_TOKEN_ADDRESS,
@@ -103,6 +105,10 @@ function TokenRow({ token, balance, priceUSD, loading }: TokenRowProps) {
 // ─── Page ──────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  // ── Mounted guard — prevents hydration mismatch with wagmi SSR ──
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const { address, chainId, isConnected } = useAccount()
 
   const currentChainId: ChainId = chainId && isValidChainId(chainId) ? chainId : 1
@@ -146,16 +152,33 @@ export default function DashboardPage() {
     nativeValueUSD +
     erc20Rows.reduce((sum, { balance, priceUSD }) => sum + balance * priceUSD, 0)
 
+  // ── Not mounted yet (SSR) — render nothing to avoid hydration mismatch ──
+  if (!mounted) return null
+
   // ── Not connected ──────────────────────────────────────
   if (!isConnected) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-6 p-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600/20">
           <Wallet className="h-8 w-8 text-indigo-400" />
         </div>
-        <h2 className="text-xl font-semibold text-white">Connect your wallet</h2>
-        <p className="max-w-sm text-sm text-gray-400">
-          Connect a wallet to view your portfolio balance and start using PayFlow.
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold text-white">Connect your wallet</h2>
+          <p className="max-w-sm text-sm text-gray-400">
+            Connect a wallet to view your portfolio balance and start using PayFlow.
+          </p>
+        </div>
+        <WalletButton />
+        <p className="text-xs text-gray-600">
+          Don&apos;t have a wallet?{" "}
+          <a
+            href="https://metamask.io/download/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-indigo-400 underline hover:text-indigo-300"
+          >
+            Install MetaMask
+          </a>
         </p>
       </div>
     )
