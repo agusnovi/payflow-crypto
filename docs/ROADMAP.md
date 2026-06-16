@@ -32,8 +32,8 @@
 - [x] Setup `.env.local` with all API keys
 - [x] Configure wagmi + RainbowKit in `src/lib/wagmi.ts`
 - [x] Create `Web3Provider` in `src/components/providers/Web3Provider.tsx`
-- [ ] Wrap root `layout.tsx` with `Web3Provider`
-- [ ] Create `WalletButton` component using RainbowKit's `ConnectButton`
+- [x] Wrap root `layout.tsx` with `Web3Provider`
+- [x] Create `WalletButton` component using RainbowKit's `ConnectButton`
 - [ ] Create `Navbar` with wallet button
 - [ ] Create `Sidebar` with navigation links
 - [ ] Create `src/lib/chains.ts` with all supported chains and tokens
