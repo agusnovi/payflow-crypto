@@ -83,7 +83,7 @@
   - Return transaction ID
 - [x] Create `useOnrampQuote` hook with 30s auto-refresh
 - [x] Create Onramp page (`src/app/onramp/page.tsx`)
-- [ ] Create Transaction History page (`src/app/history/page.tsx`):
+- [x] Create Transaction History page (`src/app/history/page.tsx`):
   - Fetch from `GET /api/transactions`
   - Show onramp transactions with status
 - [ ] Create `GET /api/transactions` route with pagination and filtering
