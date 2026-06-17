@@ -86,7 +86,7 @@
 - [x] Create Transaction History page (`src/app/history/page.tsx`):
   - Fetch from `GET /api/transactions`
   - Show onramp transactions with status
-- [ ] Create `GET /api/transactions` route with pagination and filtering
+- [x] Create `GET /api/transactions` route with pagination and filtering
 - [ ] Create `TransactionTable` component
 
 ### Acceptance Criteria
