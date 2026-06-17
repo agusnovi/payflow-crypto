@@ -131,7 +131,7 @@
   - Price impact warning (yellow > 1%, red > 3%)
   - Slippage settings
   - Swap button (disabled if no wallet, insufficient balance, same token)
-- [ ] Create `useTokenBalance` hook (reads on-chain ERC-20 balance)
+- [x] Create `useTokenBalance` hook (reads on-chain ERC-20 balance)
 - [ ] Create Swap page (`src/app/swap/page.tsx`)
 
 ### Acceptance Criteria

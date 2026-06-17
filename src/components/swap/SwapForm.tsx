@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useAccount, useBalance, useReadContract } from "wagmi"
+import { useAccount } from "wagmi"
 import { parseUnits } from "viem"
 import {
   AlertTriangle,
@@ -13,7 +13,8 @@ import {
 } from "lucide-react"
 
 import { useSwapQuote } from "@/hooks/useSwapQuote"
-import { NATIVE_TOKEN_ADDRESS, SUPPORTED_CHAINS, getTokensByChain, isValidChainId } from "@/lib/chains"
+import { useTokenBalance } from "@/hooks/useTokenBalance"
+import { SUPPORTED_CHAINS, getTokensByChain, isValidChainId } from "@/lib/chains"
 import { cn } from "@/lib/utils"
 import { TokenSelector } from "@/components/shared/TokenSelector"
 import { Button } from "@/components/ui/Button"
@@ -21,16 +22,6 @@ import { Spinner } from "@/components/ui/Spinner"
 import type { ApiResponse, ChainId, Token } from "@/types"
 
 // ─── Constants ────────────────────────────────────────────
-
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-] as const
 
 const SLIPPAGE_PRESETS = [0.1, 0.5, 1.0]
 
@@ -48,14 +39,6 @@ function toWei(amount: string, decimals: number): string | null {
   } catch {
     return null
   }
-}
-
-function formatBalance(wei: bigint, decimals: number): string {
-  const divisor = BigInt(10 ** decimals)
-  const whole = wei / divisor
-  const remainder = wei % divisor
-  const remainderStr = remainder.toString().padStart(decimals, "0").slice(0, decimals === 6 ? 2 : 6)
-  return `${whole}.${remainderStr}`.replace(/\.?0+$/, "") || "0"
 }
 
 function PriceImpactBadge({ impact }: { impact: number }) {
@@ -107,29 +90,8 @@ export function SwapForm() {
   }, [currentChainId])
 
   // ── Balance of the selected fromToken ───────────────────
-  const isNative = fromToken?.address === NATIVE_TOKEN_ADDRESS
-
-  const { data: nativeBalance } = useBalance({
-    address,
-    chainId: currentChainId,
-    query: { enabled: Boolean(address) && isNative },
-  })
-
-  const { data: erc20BalanceRaw } = useReadContract({
-    address: (fromToken?.address ?? "0x0000000000000000000000000000000000000000") as `0x${string}`,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    chainId: currentChainId,
-    query: { enabled: Boolean(address) && Boolean(fromToken) && !isNative },
-  })
-
-  const fromBalanceWei: bigint = isNative
-    ? (nativeBalance?.value ?? BigInt(0))
-    : ((erc20BalanceRaw as bigint | undefined) ?? BigInt(0))
-
-  const fromBalanceFormatted =
-    fromToken ? formatBalance(fromBalanceWei, fromToken.decimals) : "0"
+  const { balanceWei: fromBalanceWei, balanceFormatted: fromBalanceFormatted } =
+    useTokenBalance(fromToken, address, currentChainId)
 
   // ── Wei amount for quote ─────────────────────────────────
   const amountWei = fromToken ? toWei(amountStr, fromToken.decimals) : null
