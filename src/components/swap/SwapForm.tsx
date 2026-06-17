@@ -147,7 +147,6 @@ export function SwapForm() {
   function handleSwitch() {
     setFromToken(toToken)
     setToToken(fromToken)
-    setAmountStr("")
   }
 
   // ── Slippage ──────────────────────────────────────────────

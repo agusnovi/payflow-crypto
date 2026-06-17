@@ -1,15 +1,9 @@
 import { formatUnits } from "viem"
+import { getTokenByAddress } from "@/lib/chains"
 import type { ChainId, SwapQuote, SwapRouteStep } from "@/types"
 
 // ─── 1inch internal response types ────────────────────────
-
-interface OneInchToken {
-  address: string
-  symbol: string
-  name: string
-  decimals: number
-  logoURI?: string
-}
+// v6 /quote only returns dstAmount, protocols, and gas — no token objects
 
 interface OneInchProtocolStep {
   name: string
@@ -20,8 +14,6 @@ interface OneInchProtocolStep {
 
 interface OneInchQuoteResponse {
   dstAmount: string
-  srcToken: OneInchToken
-  dstToken: OneInchToken
   protocols: OneInchProtocolStep[][][]
   gas: number
 }
@@ -78,20 +70,6 @@ function flattenProtocols(protocols: OneInchProtocolStep[][][]): SwapRouteStep[]
   }))
 }
 
-function estimatePriceImpact(
-  srcToken: OneInchToken,
-  dstToken: OneInchToken,
-  fromAmountWei: string,
-  toAmountWei: string,
-): number {
-  // Approximation: compare ratio to expected 1:1 in USD terms is not possible
-  // without price data here. Return 0 — the API route will enrich this with
-  // CoinGecko prices if needed. Actual price impact from 1inch is not in the
-  // quote endpoint; it requires the /price endpoint for spot comparison.
-  void srcToken; void dstToken; void fromAmountWei; void toAmountWei
-  return 0
-}
-
 export async function getSwapQuote(params: SwapQuoteParams): Promise<SwapQuote> {
   const apiKey = process.env.ONEINCH_API_KEY
   if (!apiKey) throw new Error("ONEINCH_API_KEY is not configured")
@@ -120,42 +98,28 @@ export async function getSwapQuote(params: SwapQuoteParams): Promise<SwapQuote> 
 
   const data = (await res.json()) as OneInchQuoteResponse
 
+  // Look up token metadata from our COMMON_TOKENS config
+  const fromToken = getTokenByAddress(params.chainId, params.fromTokenAddress)
+  const toToken   = getTokenByAddress(params.chainId, params.toTokenAddress)
+
+  if (!fromToken) throw new Error(`Token not supported: ${params.fromTokenAddress}`)
+  if (!toToken)   throw new Error(`Token not supported: ${params.toTokenAddress}`)
+
   const toAmountFormatted = parseFloat(
-    formatUnits(BigInt(data.dstAmount), data.dstToken.decimals)
+    formatUnits(BigInt(data.dstAmount), toToken.decimals)
   ).toFixed(6).replace(/\.?0+$/, "")
 
   const route = flattenProtocols(data.protocols)
 
-  // Gas cost: 1inch returns gas units; convert to USD requires gas price + ETH price.
-  // We store gas units as a string — the API route layer can convert to USD if needed.
-  const estimatedGasUSD = data.gas.toString()
-
   return {
-    fromToken: {
-      address: data.srcToken.address as `0x${string}`,
-      symbol: data.srcToken.symbol,
-      name: data.srcToken.name,
-      decimals: data.srcToken.decimals,
-      chainId: params.chainId,
-    },
-    toToken: {
-      address: data.dstToken.address as `0x${string}`,
-      symbol: data.dstToken.symbol,
-      name: data.dstToken.name,
-      decimals: data.dstToken.decimals,
-      chainId: params.chainId,
-    },
+    fromToken,
+    toToken,
     fromAmount: params.amount,
     toAmount: data.dstAmount,
     toAmountFormatted,
-    priceImpact: estimatePriceImpact(
-      data.srcToken,
-      data.dstToken,
-      params.amount,
-      data.dstAmount,
-    ),
+    priceImpact: 0,
     fee: 0,
-    estimatedGasUSD,
+    estimatedGasUSD: data.gas.toString(),
     route,
     expiresAt: Math.floor(Date.now() / 1000) + QUOTE_EXPIRY_SECONDS,
   }
