@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
-import { CheckCircle, RefreshCw } from "lucide-react"
+import { CheckCircle, ExternalLink, RefreshCw } from "lucide-react"
 
 import { useOnrampQuote } from "@/hooks/useOnrampQuote"
 import { SUPPORTED_CHAINS } from "@/lib/chains"
@@ -75,11 +75,15 @@ export function OnrampForm() {
 
   const quoteEnabled = debouncedAmount >= min && debouncedAmount <= max && isConnected
 
+  // ── Quote expiry countdown ───────────────────────────────
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+
   const {
     data: quote,
     isLoading: quoteLoading,
     isFetching: quoteFetching,
     error: quoteError,
+    refetch: refetchQuote,
   } = useOnrampQuote({
     fiatAmount: debouncedAmount,
     fiatCurrency,
@@ -87,6 +91,21 @@ export function OnrampForm() {
     chainId,
     walletAddress: address ?? "",
   })
+
+  // Tick down secondsLeft every second when quote is available
+  useEffect(() => {
+    if (!quote) { setSecondsLeft(null); return }
+    const update = () => {
+      const left = Math.max(0, quote.expiresAt - Math.floor(Date.now() / 1000))
+      setSecondsLeft(left)
+      if (left === 0) refetchQuote()
+    }
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [quote, refetchQuote])
+
+  const isExpired = secondsLeft !== null && secondsLeft === 0
 
   async function handleConfirm() {
     if (!quote || !address) return
@@ -104,6 +123,7 @@ export function OnrampForm() {
           cryptoSymbol: quote.cryptoSymbol,
           chainId: quote.chainId,
           walletAddress: address,
+          expiresAt: quote.expiresAt,
         }),
       })
 
@@ -146,6 +166,20 @@ export function OnrampForm() {
           <p className="mt-0.5 font-mono text-xs text-gray-300">{txResult.transactionId}</p>
           <p className="mt-2 text-xs text-gray-500">Tx Hash</p>
           <p className="mt-0.5 truncate font-mono text-xs text-gray-300">{txResult.txHash}</p>
+          <a
+            href={`${SUPPORTED_CHAINS[quote!.chainId].blockExplorerUrl}/tx/${txResult.txHash}`}
+            onClick={(e) => e.preventDefault()}
+            tabIndex={-1}
+            aria-disabled="true"
+            title="Simulated — not on-chain"
+            className="mt-1.5 inline-flex cursor-not-allowed items-center gap-1 text-xs text-gray-600"
+          >
+            <ExternalLink className="h-3 w-3" />
+            View on Explorer
+            <span className="rounded bg-gray-800 px-1.5 py-0.5 text-xs text-gray-500">
+              Simulated
+            </span>
+          </a>
         </div>
         <Button variant="outline" onClick={handleReset} className="w-full">
           Buy More
@@ -303,6 +337,20 @@ export function OnrampForm() {
                   <span className="text-xs text-gray-500">{quote.provider}</span>
                 </div>
               </div>
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-xs text-gray-500">Quote expires</span>
+                <span className={`text-xs font-medium ${
+                  secondsLeft !== null && secondsLeft <= 10
+                    ? "text-red-400"
+                    : "text-gray-400"
+                }`}>
+                  {isExpired
+                    ? "Refreshing…"
+                    : secondsLeft !== null
+                      ? `${secondsLeft}s`
+                      : "—"}
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -316,7 +364,7 @@ export function OnrampForm() {
         <Button
           size="lg"
           className="w-full"
-          disabled={!quote || !isConnected || !!amountError}
+          disabled={!quote || !isConnected || !!amountError || isExpired}
           loading={isExecuting}
           onClick={handleConfirm}
         >
@@ -324,7 +372,9 @@ export function OnrampForm() {
             ? "Connect wallet first"
             : !quote
               ? "Enter amount to continue"
-              : `Buy ${quote.cryptoAmountFormatted} ${quote.cryptoSymbol}`}
+              : isExpired
+                ? "Quote expired — refreshing…"
+                : `Buy ${quote.cryptoAmountFormatted} ${quote.cryptoSymbol}`}
         </Button>
       </div>
     </div>

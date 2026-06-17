@@ -1,9 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Copy, Check } from "lucide-react"
+import { Copy, Check, ExternalLink } from "lucide-react"
 import { formatAmount, cn } from "@/lib/utils"
 import type { Transaction, TransactionStatus, TransactionType } from "@/types"
+
+const CHAIN_EXPLORER: Record<string, string> = {
+  Ethereum: "https://etherscan.io",
+  Polygon: "https://polygonscan.com",
+  Base: "https://basescan.org",
+  "Arbitrum One": "https://arbiscan.io",
+}
 
 // Decimals per token symbol (display only — not authoritative config)
 const TOKEN_DECIMALS: Record<string, number> = {
@@ -52,8 +59,9 @@ function formatDate(iso: string): string {
   })
 }
 
-function TxHashCell({ hash }: { hash: string }) {
+function TxHashCell({ hash, chainName }: { hash: string; chainName: string }) {
   const [copied, setCopied] = useState(false)
+  const explorerBase = CHAIN_EXPLORER[chainName]
 
   function handleCopy() {
     navigator.clipboard.writeText(hash).then(() => {
@@ -63,21 +71,39 @@ function TxHashCell({ hash }: { hash: string }) {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs text-gray-400">
-        {hash.slice(0, 6)}…{hash.slice(-4)}
-      </span>
-      <button
-        onClick={handleCopy}
-        className="rounded p-0.5 text-gray-600 transition-colors hover:text-gray-300"
-        title="Copy tx hash"
-      >
-        {copied ? (
-          <Check className="h-3 w-3 text-green-400" />
-        ) : (
-          <Copy className="h-3 w-3" />
-        )}
-      </button>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className="font-mono text-xs text-gray-400">
+          {hash.slice(0, 6)}…{hash.slice(-4)}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="rounded p-0.5 text-gray-600 transition-colors hover:text-gray-300"
+          title="Copy tx hash"
+        >
+          {copied ? (
+            <Check className="h-3 w-3 text-green-400" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
+        </button>
+      </div>
+      {explorerBase && (
+        <a
+          href={`${explorerBase}/tx/${hash}`}
+          onClick={(e) => e.preventDefault()}
+          tabIndex={-1}
+          aria-disabled="true"
+          title="Simulated — not on-chain"
+          className="inline-flex cursor-not-allowed items-center gap-1 text-xs text-gray-600"
+        >
+          <ExternalLink className="h-3 w-3" />
+          View on Explorer
+          <span className="rounded bg-gray-800 px-1 py-0.5 text-xs text-gray-500">
+            Simulated
+          </span>
+        </a>
+      )}
     </div>
   )
 }
@@ -163,7 +189,11 @@ export function TransactionTable({ transactions, isLoading }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {tx.txHash ? <TxHashCell hash={tx.txHash} /> : <span className="text-xs text-gray-600">—</span>}
+                    {tx.txHash ? (
+                      <TxHashCell hash={tx.txHash} chainName={tx.fromChain} />
+                    ) : (
+                      <span className="text-xs text-gray-600">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

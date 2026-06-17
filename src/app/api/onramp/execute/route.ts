@@ -13,6 +13,7 @@ const ExecuteSchema = z.object({
   cryptoSymbol: z.enum(["USDC", "ETH", "MATIC"]),
   chainId: z.union([z.literal(1), z.literal(137), z.literal(8453), z.literal(42161)]),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
+  expiresAt: z.number().int().positive(),
 })
 
 export async function POST(request: Request) {
@@ -34,7 +35,16 @@ export async function POST(request: Request) {
       cryptoSymbol,
       chainId,
       walletAddress,
+      expiresAt,
     } = parsed.data
+
+    // Reject if quote has expired
+    if (Math.floor(Date.now() / 1000) > expiresAt) {
+      return NextResponse.json(
+        { success: false, error: "Quote has expired. Please get a new quote." },
+        { status: 400 }
+      )
+    }
 
     const chainName = SUPPORTED_CHAINS[chainId as ChainId].name
     const txHash = `0x${randomBytes(32).toString("hex")}`
