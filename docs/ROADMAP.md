@@ -104,7 +104,7 @@
 
 ### Tasks
 
-- [ ] Setup 1inch API client in `src/lib/oneinch.ts`:
+- [x] Setup 1inch API client in `src/lib/oneinch.ts`:
   - `getSwapQuote(params)` function
   - Handle 1inch error responses
   - TypeScript types for 1inch API response
