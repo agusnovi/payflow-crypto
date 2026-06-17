@@ -124,7 +124,7 @@
   - Shows token logo, symbol, name
   - Shows user's balance for each token
   - Searchable dropdown
-- [ ] Create `SwapForm` component (`src/components/swap/SwapForm.tsx`):
+- [x] Create `SwapForm` component (`src/components/swap/SwapForm.tsx`):
   - From token + amount input
   - To token display (read-only)
   - Quote details: output amount, price impact, route, gas
