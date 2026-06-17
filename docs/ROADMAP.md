@@ -132,7 +132,7 @@
   - Slippage settings
   - Swap button (disabled if no wallet, insufficient balance, same token)
 - [x] Create `useTokenBalance` hook (reads on-chain ERC-20 balance)
-- [ ] Create Swap page (`src/app/swap/page.tsx`)
+- [x] Create Swap page (`src/app/swap/page.tsx`)
 
 ### Acceptance Criteria
 - [ ] Quotes fetch from real 1inch API (not mocked)
