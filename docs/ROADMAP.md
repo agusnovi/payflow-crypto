@@ -76,7 +76,7 @@
   - Fetch ETH/USDC price from CoinGecko
   - Calculate crypto amount, fees, exchange rate
   - Return `OnrampQuote` object
-- [ ] Create `POST /api/onramp/execute` route:
+- [x] Create `POST /api/onramp/execute` route:
   - Validate input
   - Save `Transaction` to DB (type: "onramp", status: "completed")
   - Generate simulated tx hash
