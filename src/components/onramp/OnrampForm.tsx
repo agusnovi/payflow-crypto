@@ -98,12 +98,11 @@ export function OnrampForm() {
     const update = () => {
       const left = Math.max(0, quote.expiresAt - Math.floor(Date.now() / 1000))
       setSecondsLeft(left)
-      if (left === 0) refetchQuote()
     }
     update()
     const interval = setInterval(update, 1000)
     return () => clearInterval(interval)
-  }, [quote, refetchQuote])
+  }, [quote])
 
   const isExpired = secondsLeft !== null && secondsLeft === 0
 
@@ -339,17 +338,24 @@ export function OnrampForm() {
               </div>
               <div className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-xs text-gray-500">Quote expires</span>
-                <span className={`text-xs font-medium ${
-                  secondsLeft !== null && secondsLeft <= 10
-                    ? "text-red-400"
-                    : "text-gray-400"
-                }`}>
-                  {isExpired
-                    ? "Refreshing…"
-                    : secondsLeft !== null
-                      ? `${secondsLeft}s`
-                      : "—"}
-                </span>
+                {isExpired ? (
+                  <button
+                    onClick={() => refetchQuote()}
+                    disabled={quoteFetching}
+                    className="flex items-center gap-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${quoteFetching ? "animate-spin" : ""}`} />
+                    {quoteFetching ? "Fetching…" : "Recalculate"}
+                  </button>
+                ) : (
+                  <span className={`text-xs font-medium ${
+                    secondsLeft !== null && secondsLeft <= 10
+                      ? "text-red-400"
+                      : "text-gray-400"
+                  }`}>
+                    {secondsLeft !== null ? `${secondsLeft}s` : "—"}
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -373,7 +379,7 @@ export function OnrampForm() {
             : !quote
               ? "Enter amount to continue"
               : isExpired
-                ? "Quote expired — refreshing…"
+                ? "Quote expired — click Recalculate"
                 : `Buy ${quote.cryptoAmountFormatted} ${quote.cryptoSymbol}`}
         </Button>
       </div>

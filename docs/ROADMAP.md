@@ -90,11 +90,11 @@
 - [x] Create `TransactionTable` component
 
 ### Acceptance Criteria
-- [ ] Quote updates when fiat amount changes
-- [ ] Fee breakdown shows platform fee + network fee
-- [ ] Confirming saves transaction to DB
-- [ ] Transaction appears in history page immediately
-- [ ] Amount below $10 shows validation error
+- [x] Quote updates when fiat amount changes
+- [x] Fee breakdown shows platform fee + network fee
+- [x] Confirming saves transaction to DB
+- [x] Transaction appears in history page immediately
+- [x] Amount below $10 shows validation error
 
 ---
 

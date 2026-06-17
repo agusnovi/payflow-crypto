@@ -19,7 +19,6 @@ export function useOnrampQuote(params: OnrampRequest) {
     queryFn: () => fetchOnrampQuote(params),
     enabled: params.fiatAmount >= 10 && Boolean(params.walletAddress),
     staleTime: 30_000,
-    refetchInterval: 30_000,
     retry: 1,
   })
 }
