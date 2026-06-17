@@ -71,7 +71,7 @@
   - Chain selector
   - Real-time quote display
   - Confirm button
-- [ ] Create `POST /api/onramp/quote` route:
+- [x] Create `POST /api/onramp/quote` route:
   - Validate input with Zod (`OnrampQuoteSchema`)
   - Fetch ETH/USDC price from CoinGecko
   - Calculate crypto amount, fees, exchange rate

@@ -13,6 +13,7 @@ async function fetchPrices(tokens: string[]): Promise<TokenPriceMap> {
   }
 
   // Strip cachedAt — it's not a price entry
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { cachedAt: _, ...prices } = json.data
   return prices as TokenPriceMap
 }
