@@ -108,11 +108,11 @@
   - `getSwapQuote(params)` function
   - Handle 1inch error responses
   - TypeScript types for 1inch API response
-- [ ] Create `GET /api/swap/quote` route:
+- [x] Create `GET /api/swap/quote` route:
   - Validate query params with Zod
   - Proxy to 1inch API
   - Transform response to `SwapQuote` type
-- [ ] Create `POST /api/swap/execute` route:
+- [x] Create `POST /api/swap/execute` route:
   - Validate input
   - Save Transaction to DB
   - Return transaction ID
