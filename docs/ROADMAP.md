@@ -87,7 +87,7 @@
   - Fetch from `GET /api/transactions`
   - Show onramp transactions with status
 - [x] Create `GET /api/transactions` route with pagination and filtering
-- [ ] Create `TransactionTable` component
+- [x] Create `TransactionTable` component
 
 ### Acceptance Criteria
 - [ ] Quote updates when fiat amount changes
