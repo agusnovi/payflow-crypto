@@ -120,7 +120,7 @@
   - 500ms debounce on amount input
   - 15s auto-refresh
   - Cancel previous request on new input
-- [ ] Create `TokenSelector` component (`src/components/shared/TokenSelector.tsx`):
+- [x] Create `TokenSelector` component (`src/components/shared/TokenSelector.tsx`):
   - Shows token logo, symbol, name
   - Shows user's balance for each token
   - Searchable dropdown
