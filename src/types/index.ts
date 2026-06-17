@@ -77,6 +77,13 @@ export interface OnrampRequest {
   walletAddress: string
 }
 
+export interface OnrampExecuteResult {
+  transactionId: string
+  status: "completed"
+  txHash: string
+  createdAt: string
+}
+
 // ─────────────────────────────────────────
 // Swap
 // ─────────────────────────────────────────

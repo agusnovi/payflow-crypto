@@ -64,7 +64,7 @@
 
 ### Tasks
 
-- [ ] Create `OnrampForm` component (`src/components/onramp/OnrampForm.tsx`):
+- [x] Create `OnrampForm` component (`src/components/onramp/OnrampForm.tsx`):
   - Fiat currency selector (USD / IDR)
   - Fiat amount input with validation
   - Crypto token selector (USDC / ETH / MATIC)
