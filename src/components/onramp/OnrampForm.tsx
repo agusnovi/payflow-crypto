@@ -6,7 +6,7 @@ import { CheckCircle, ExternalLink, RefreshCw } from "lucide-react"
 
 import { useOnrampQuote } from "@/hooks/useOnrampQuote"
 import { SUPPORTED_CHAINS } from "@/lib/chains"
-import { formatAmount } from "@/lib/utils"
+import { formatAmount, formatFiat } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Spinner } from "@/components/ui/Spinner"
@@ -27,12 +27,6 @@ const CRYPTO_SYMBOLS: CryptoSymbol[] = ["USDC", "ETH", "MATIC"]
 const FIAT_MIN: Record<FiatCurrency, number> = { USD: 10, IDR: 150_000 }
 const FIAT_MAX: Record<FiatCurrency, number> = { USD: 10_000, IDR: 150_000_000 }
 
-function fiatLabel(currency: FiatCurrency, amount: number): string {
-  if (currency === "IDR") {
-    return `Rp ${amount.toLocaleString("id-ID")}`
-  }
-  return `$${amount.toLocaleString("en-US")}`
-}
 
 export function OnrampForm() {
   const { address, isConnected } = useAccount()
@@ -67,9 +61,9 @@ export function OnrampForm() {
   const amountError =
     amountStr !== "" && !isNaN(amountNum)
       ? amountNum < min
-        ? `Minimum amount is ${fiatLabel(fiatCurrency, min)}`
+        ? `Minimum amount is ${formatFiat(min, fiatCurrency)}`
         : amountNum > max
-          ? `Maximum amount is ${fiatLabel(fiatCurrency, max)}`
+          ? `Maximum amount is ${formatFiat(max, fiatCurrency)}`
           : null
       : null
 
@@ -234,7 +228,7 @@ export function OnrampForm() {
           </div>
           {!amountError && (
             <p className="mt-1.5 text-xs text-gray-500">
-              Min {fiatLabel(fiatCurrency, min)} · Max {fiatLabel(fiatCurrency, max)}
+              Min {formatFiat(min, fiatCurrency)} · Max {formatFiat(max, fiatCurrency)}
             </p>
           )}
         </div>
@@ -292,7 +286,7 @@ export function OnrampForm() {
             <div className="py-4 text-center text-sm text-gray-500">
               {!isConnected
                 ? "Connect wallet to see quote"
-                : `Enter an amount (min ${fiatLabel(fiatCurrency, min)}) to see quote`}
+                : `Enter an amount (min ${formatFiat(min, fiatCurrency)}) to see quote`}
             </div>
           )}
 
@@ -308,25 +302,25 @@ export function OnrampForm() {
                 <span className="text-xs text-gray-500">Exchange rate</span>
                 <span className="text-xs text-gray-300">
                   1 {quote.cryptoSymbol} ={" "}
-                  {fiatLabel(fiatCurrency, quote.exchangeRate)}
+                  {formatFiat(quote.exchangeRate, fiatCurrency)}
                 </span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-xs text-gray-500">Platform fee</span>
                 <span className="text-xs text-gray-300">
-                  {fiatLabel(fiatCurrency, quote.platformFee)}
+                  {formatFiat(quote.platformFee, fiatCurrency)}
                 </span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-xs text-gray-500">Network fee</span>
                 <span className="text-xs text-gray-300">
-                  {fiatLabel(fiatCurrency, quote.networkFee)}
+                  {formatFiat(quote.networkFee, fiatCurrency)}
                 </span>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
                 <span className="text-xs font-medium text-gray-400">Total fee</span>
                 <span className="text-xs font-medium text-white">
-                  {fiatLabel(fiatCurrency, quote.totalFee)}
+                  {formatFiat(quote.totalFee, fiatCurrency)}
                 </span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5">

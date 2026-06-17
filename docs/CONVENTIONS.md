@@ -382,3 +382,55 @@ export function cn(...inputs: ClassValue[]) {
   isSuccess && "border-green-300 bg-green-50"
 )} />
 ```
+
+---
+
+## 11. Code Co-location vs Extraction
+
+The goal is to avoid both under-splitting (duplication) and over-splitting (premature abstraction). Use this decision tree before creating a new file or moving code.
+
+### Keep co-located in the same file
+
+- **Small sub-components (< ~40 lines)** that are only used by the parent component in that file.
+  ```typescript
+  // ✅ StatCard and TokenRow live in page.tsx — they are never imported elsewhere
+  function StatCard({ label, value }: StatCardProps) { ... }
+  function TokenRow({ token, balance }: TokenRowProps) { ... }
+  ```
+- **Props interfaces for internal sub-components** — co-locate with the component they describe.
+- **Feature-specific constants** used only within one file (`CRYPTO_CHAINS`, `FIAT_MIN`, `STATUS_STYLES`, local ABI fragments).
+- **One-off form handlers** (`handleConfirm`, `handleReset`) that call a single API endpoint from a single component.
+- **Internal helper functions** used in fewer than 2 files.
+
+### Extract to `src/lib/utils.ts`
+
+- **Pure formatting functions** that appear in 2+ different files.
+  ```typescript
+  // ✅ formatFiat is used by OnrampForm AND TransactionTable — lives in utils.ts
+  export function formatFiat(amount: number, currency: string): string { ... }
+  ```
+- **Pure utility functions** with no component state, no JSX, and no side effects.
+
+### Extract to `src/hooks/`
+
+- Data fetching logic consumed by **2+ different components**.
+- State machine / reducer logic **> ~30 lines** that contains no JSX.
+
+### Do NOT split for "bundle optimization"
+
+Next.js App Router automatically code-splits per route. Moving a small sub-component to its own file has **zero effect** on bundle size unless combined with `React.lazy()` / `dynamic()`.
+
+```typescript
+// ❌ This does NOT reduce bundle size — it only adds indirection
+// src/components/dashboard/StatCard.tsx  (unnecessary file)
+
+// ✅ Only reach for dynamic() when importing a heavy third-party library
+const HeavyChart = dynamic(() => import("./HeavyChart"), { ssr: false })
+```
+
+### Rule of thumb
+
+> Extract only when there is real duplication (2+ places) or when the code is large enough to obscure the primary logic of the file. When in doubt, keep it co-located.
+
+```
+```

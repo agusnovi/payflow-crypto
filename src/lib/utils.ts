@@ -17,3 +17,10 @@ export function formatAmount(amount: string, decimals: number): string {
 export function shortenAddress(address: string, chars = 4): string {
   return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`
 }
+
+export function formatFiat(amount: number, currency: string): string {
+  if (currency === "IDR") {
+    return `Rp ${amount.toLocaleString("id-ID")}`
+  }
+  return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}

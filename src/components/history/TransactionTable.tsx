@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Copy, Check, ExternalLink } from "lucide-react"
-import { formatAmount, cn } from "@/lib/utils"
+import { formatAmount, formatFiat, cn } from "@/lib/utils"
 import type { Transaction, TransactionStatus, TransactionType } from "@/types"
 
 const CHAIN_EXPLORER: Record<string, string> = {
@@ -36,13 +36,6 @@ const TYPE_STYLES: Record<TransactionType, string> = {
   workflow: "bg-cyan-600/20 text-cyan-400",
 }
 
-function formatFiat(amount: string, currency: string): string {
-  const num = parseFloat(amount)
-  if (currency === "IDR") {
-    return `Rp ${num.toLocaleString("id-ID")}`
-  }
-  return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 function formatCrypto(amount: string, symbol: string): string {
   const decimals = TOKEN_DECIMALS[symbol] ?? 18
@@ -170,7 +163,7 @@ export function TransactionTable({ transactions, isLoading }: Props) {
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-300">
                     {tx.type === "onramp"
-                      ? formatFiat(tx.fromAmount, tx.fromToken)
+                      ? formatFiat(parseFloat(tx.fromAmount), tx.fromToken)
                       : `${tx.fromAmount} ${tx.fromToken}`}
                   </td>
                   <td className="px-4 py-3 text-xs font-medium text-white">
