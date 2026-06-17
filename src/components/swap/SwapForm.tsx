@@ -182,6 +182,7 @@ export function SwapForm() {
           chainId: currentChainId,
           walletAddress: address,
           slippage,
+          expiresAt: quote.expiresAt,
         }),
       })
 
