@@ -15,14 +15,12 @@ async function fetchPrices(tokens: string[]): Promise<TokenPriceMap> {
   return json.data
 }
 
-export function useTokenPrices(tokens: string[]) {
-  const key = [...tokens].sort()
-
+export function useTokenPrices(tokens: string[], enabled = true) {
   return useQuery({
-    queryKey: ["prices", key],
+    queryKey: ["prices", [...tokens].sort()],
     queryFn: () => fetchPrices(tokens),
     staleTime: 60_000,
     refetchInterval: 60_000,
-    enabled: tokens.length > 0,
+    enabled: enabled && tokens.length > 0,
   })
 }
