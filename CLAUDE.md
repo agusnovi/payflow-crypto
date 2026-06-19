@@ -218,6 +218,7 @@ npm run db:studio
 6. **All monetary amounts are stored and transmitted as strings** (to avoid floating-point precision loss). Format only at display time using `formatAmount()` from `lib/utils.ts`.
 7. **Chain IDs are always numbers** (`1`, `137`, `8453`) — never strings.
 8. **Token amounts are always in the smallest unit (wei)** when passed between backend and frontend. Convert to human-readable only in the UI layer.
+9. **Never duplicate functions or components.** Before writing any logic, check `src/lib/`, `src/hooks/`, and `src/components/shared/` first. If it already exists, import it — do not re-implement. See `docs/CONVENTIONS.md` Section 11 for extraction rules.
 
 ---
 

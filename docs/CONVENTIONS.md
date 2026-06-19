@@ -432,5 +432,30 @@ const HeavyChart = dynamic(() => import("./HeavyChart"), { ssr: false })
 
 > Extract only when there is real duplication (2+ places) or when the code is large enough to obscure the primary logic of the file. When in doubt, keep it co-located.
 
-```
+### No duplication — check before you write
+
+Before implementing any function, API client setup, or component, **search the codebase first**:
+
+| Looking for | Check here first |
+|---|---|
+| Data fetching / API client | `src/lib/` |
+| Formatting / pure utility | `src/lib/utils.ts` |
+| Stateful logic used in multiple components | `src/hooks/` |
+| UI element used in multiple features | `src/components/shared/` or `src/components/ui/` |
+| TypeScript type or interface | `src/types/index.ts` |
+
+If it already exists → **import it, do not re-implement.**
+
+If it belongs in a shared location but doesn't exist yet → **create it there**, not inline inside the feature file.
+
+```typescript
+// ❌ Wrong — duplicating logic that already lives in src/lib/prices.ts
+// Inside src/app/api/prices/route.ts:
+const COINGECKO_IDS = { ETH: "ethereum", ... }  // already defined in lib/prices.ts
+const cache = new Map()                           // already handled in lib/prices.ts
+const res = await fetch("https://api.coingecko.com/...")  // already wrapped in lib/prices.ts
+
+// ✅ Correct — import and reuse
+import { getTokenPrices } from "@/lib/prices"
+const prices = await getTokenPrices(tokens)
 ```
