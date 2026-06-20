@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useAccount, useBalance, useReadContracts } from "wagmi"
 import { formatUnits } from "viem"
 import { Wallet } from "lucide-react"
@@ -142,10 +141,6 @@ function TokenRow({ token, balance, priceUSD, loading }: TokenRowProps) {
 // ─── Page ──────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  // ── Mounted guard — prevents hydration mismatch with wagmi SSR ──
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-
   const { address, chainId, isConnected, isReconnecting } = useAccount()
 
   const currentChainId: ChainId = chainId && isValidChainId(chainId) ? chainId : 1
@@ -189,10 +184,7 @@ export default function DashboardPage() {
     nativeValueUSD +
     erc20Rows.reduce((sum, { balance, priceUSD }) => sum + balance * priceUSD, 0)
 
-  // ── Not mounted yet (SSR) — render nothing to avoid hydration mismatch ──
-  if (!mounted) return null
-
-  // ── Wagmi reconnecting — prevents blink to "not connected" on reload ──
+  // ── Wagmi verifying connection with wallet ──
   if (isReconnecting) return <DashboardSkeleton />
 
   // ── Not connected ──────────────────────────────────────
