@@ -6,6 +6,7 @@ import { formatUnits } from "viem"
 import { Wallet } from "lucide-react"
 
 import { useTokenPrices } from "@/hooks/useTokenPrices"
+import { Spinner } from "@/components/ui/Spinner"
 import { WalletButton } from "@/components/wallet/WalletButton"
 import {
   COMMON_TOKENS,
@@ -41,6 +42,42 @@ function formatBalance(value: number, decimals: number): string {
 }
 
 // ─── Sub-components ────────────────────────────────────────
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 p-6">
+      <div className="h-8 w-40 animate-pulse rounded-lg bg-gray-800" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+            <div className="h-4 w-24 animate-pulse rounded bg-gray-800" />
+            <div className="mt-3 h-7 w-32 animate-pulse rounded bg-gray-800" />
+          </div>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
+        <div className="flex items-center gap-3 border-b border-gray-800 px-6 py-4">
+          <Spinner className="h-4 w-4 text-indigo-400" />
+          <span className="text-sm text-gray-400">Loading wallet data…</span>
+        </div>
+        <div className="divide-y divide-gray-800">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 animate-pulse rounded-full bg-gray-800" />
+                <div className="space-y-1">
+                  <div className="h-3 w-12 animate-pulse rounded bg-gray-800" />
+                  <div className="h-3 w-20 animate-pulse rounded bg-gray-700" />
+                </div>
+              </div>
+              <div className="h-3 w-16 animate-pulse rounded bg-gray-800" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 interface StatCardProps {
   label: string
@@ -109,7 +146,7 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  const { address, chainId, isConnected } = useAccount()
+  const { address, chainId, isConnected, isReconnecting } = useAccount()
 
   const currentChainId: ChainId = chainId && isValidChainId(chainId) ? chainId : 1
   const chain = SUPPORTED_CHAINS[currentChainId]
@@ -154,6 +191,9 @@ export default function DashboardPage() {
 
   // ── Not mounted yet (SSR) — render nothing to avoid hydration mismatch ──
   if (!mounted) return null
+
+  // ── Wagmi reconnecting — prevents blink to "not connected" on reload ──
+  if (isReconnecting) return <DashboardSkeleton />
 
   // ── Not connected ──────────────────────────────────────
   if (!isConnected) {
