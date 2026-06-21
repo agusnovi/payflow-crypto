@@ -7,14 +7,42 @@
 
 ## Overview
 
-| Phase | Focus | Duration | Status |
-|---|---|---|---|
-| Phase 1 | Foundation — project setup, wallet connect, dashboard | Day 1–2 | ✅ Completed |
-| Phase 2 | Onramp — treasury-backed testnet execution | Day 3 | ✅ Completed |
-| Phase 3 | Swap — 1inch quotes + Uniswap V3 Sepolia execution | Day 4–5 | 🔄 In Progress |
-| Phase 4 | Bridge — Chainlink CCIP cross-chain on testnet | Day 6 | 🔜 Not Started |
-| Phase 5 | Workflow Builder — composable flows | Day 7–9 | 🔜 Not Started |
-| Phase 6 | Polish & Deploy | Day 10 | 🔜 Not Started |
+| Phase | Focus | Status |
+|---|---|---|
+| Phase 1 | Foundation — setup, wallet, dashboard | ✅ Done (needs testnet updates) |
+| Phase 2 | Onramp — treasury-backed testnet execution | ✅ Done (needs testnet updates) |
+| Phase 3 | Swap — 1inch quotes + Uniswap V3 Sepolia execution | 🔄 In Progress |
+| Phase 4 | Bridge — Chainlink CCIP cross-chain on testnet | 🔜 Not Started |
+| Phase 5 | Workflow Builder — composable flows | 🔜 Not Started |
+| Phase 6 | Polish & Deploy | 🔜 Not Started |
+
+---
+
+## Build Order — Testnet Implementation
+
+Jangan kerjakan per phase berurutan. Kerjakan per **layer** — setiap layer shared oleh semua fitur.
+
+```
+Layer 1 — Foundation (Phase 1 testnet updates)
+  types/index.ts + chains.ts + wagmi.ts + dashboard
+  → prerequisite untuk semua layer di bawah
+
+Layer 2 — Backend Utilities (shared, build once)
+  src/lib/treasury.ts         → dipakai oleh: onramp
+  /api/transactions/[id]      → dipakai oleh: onramp, swap, bridge
+
+Layer 3 — Feature Execution (per fitur, setelah Layer 1+2 selesai)
+  Onramp execute  → update schema + treasury send
+  Swap execute    → update schema + accept txHash + SwapForm signing
+  Bridge          → baru (Phase 4)
+```
+
+**Urutan konkret saat ini:**
+1. Phase 1 testnet updates (Layer 1)
+2. `treasury.ts` + `/api/transactions/[id]` (Layer 2)
+3. Phase 2 onramp testnet updates (Layer 3a)
+4. Phase 3 swap testnet execution (Layer 3b)
+5. Phase 4 bridge CCIP (Layer 3c)
 
 ---
 
@@ -22,12 +50,9 @@
 
 **Goal:** A running Next.js app where user can connect a wallet and see their balance.
 
-### Tasks
+### Original Tasks (Done ✅)
 
 - [x] Initialize Next.js 15 project with TypeScript
-  ```bash
-  npx create-next-app@latest payflow-crypto --typescript --tailwind --app --src-dir
-  ```
 - [x] Install all dependencies from `package.json`
 - [x] Setup `.env.local` with all API keys
 - [x] Configure wagmi + RainbowKit in `src/lib/wagmi.ts`
@@ -41,13 +66,17 @@
 - [x] Create `src/lib/utils.ts` with `cn()`, `formatAmount()`, `shortenAddress()`
 - [x] Setup Prisma: `npx prisma init`, write schema, `npx prisma db push`
 - [x] Create Prisma singleton in `src/lib/db.ts`
-- [x] Create Dashboard page (`src/app/page.tsx`):
-  - Display connected wallet address
-  - Display ETH balance via `useBalance()`
-  - Display top ERC-20 balances via `useReadContract()`
-  - Display portfolio USD value via `/api/prices`
+- [x] Create Dashboard page (`src/app/page.tsx`)
 - [x] Create `/api/prices` route (CoinGecko proxy with 60s cache)
 - [x] Create `useTokenPrices` hook
+
+### Testnet Foundation Updates ✅ Done
+
+- [x] `src/types/index.ts` — `ChainId` extended, `MainnetChainId` + `TestnetChainId` added, `OnrampExecuteResult.status` fixed, `BridgeQuote` updated for CCIP
+- [x] `src/lib/chains.ts` — 4 testnet chains in `SUPPORTED_CHAINS` + `COMMON_TOKENS`, `isTestnetChainId()` + `isMainnetChainId()` helpers added
+- [x] `src/lib/wagmi.ts` — `sepolia`, `baseSepolia`, `arbitrumSepolia`, `polygonAmoy` registered with Alchemy transports
+- [x] `.env.example` — `TREASURY_PRIVATE_KEY` added with security warnings
+- Dashboard (`src/app/page.tsx`) — no changes needed; `isValidChainId()` and `SUPPORTED_CHAINS` automatically handle testnet after chains.ts update
 
 ### Acceptance Criteria
 - [x] `npm run dev` starts without errors
@@ -55,96 +84,138 @@
 - [x] Dashboard shows real ETH balance from connected wallet
 - [x] Dashboard shows USD value of holdings
 - [x] TypeScript compiles with zero errors (`npx tsc --noEmit`)
+- [ ] Switching MetaMask to Sepolia shows correct chain name on dashboard
+- [ ] wagmi accepts Sepolia as valid chain without console errors
 
 ---
 
 ## Phase 2 — Onramp
 
-**Goal:** User can simulate buying crypto with fiat and see it in transaction history.
+**Goal:** User can buy crypto with fiat; treasury wallet sends real testnet tokens to user's wallet.
 
-### Tasks
+### Original Tasks (Done ✅)
 
-- [x] Create `OnrampForm` component (`src/components/onramp/OnrampForm.tsx`):
-  - Fiat currency selector (USD / IDR)
-  - Fiat amount input with validation
-  - Crypto token selector (USDC / ETH / MATIC)
-  - Chain selector
-  - Real-time quote display
-  - Confirm button
-- [x] Create `POST /api/onramp/quote` route:
-  - Validate input with Zod (`OnrampQuoteSchema`)
-  - Fetch ETH/USDC price from CoinGecko
-  - Calculate crypto amount, fees, exchange rate
-  - Return `OnrampQuote` object
-- [x] Create `POST /api/onramp/execute` route:
-  - Validate input
-  - Save `Transaction` to DB (type: "onramp", status: "completed")
-  - Generate simulated tx hash
-  - Return transaction ID
+- [x] Create `OnrampForm` component with fiat selector, amount input, token + chain selector, quote display
+- [x] Create `POST /api/onramp/quote` route (CoinGecko price, fee calculation, `OnrampQuote`)
+- [x] Create `POST /api/onramp/execute` route (saves to DB)
 - [x] Create `useOnrampQuote` hook with 30s auto-refresh
 - [x] Create Onramp page (`src/app/onramp/page.tsx`)
-- [x] Create Transaction History page (`src/app/history/page.tsx`):
-  - Fetch from `GET /api/transactions`
-  - Show onramp transactions with status
-- [x] Create `GET /api/transactions` route with pagination and filtering
-- [x] Create `TransactionTable` component
+- [x] Create Transaction History page + `GET /api/transactions` route + `TransactionTable`
+
+### Testnet Updates (TODO — do after Layer 1 + Layer 2)
+
+> Depends on: Phase 1 testnet updates (ChainId + chains.ts) AND `src/lib/treasury.ts`.
+
+- [ ] `POST /api/onramp/quote` — update `chainId` Zod enum to accept testnet IDs (`11155111`, `84532`, `421614`, `80002`)
+  - Restrict to testnet chains only for execution (mainnet chainIds rejected at execute step)
+
+- [ ] `POST /api/onramp/execute` — replace simulation with real treasury send:
+  - Remove `cryptoAmount` from request body (server recalculates, never trusts frontend)
+  - Remove `randomBytes` txHash generation
+  - Update `chainId` Zod enum to testnet IDs only
+  - Call `treasury.sendNative(walletAddress, amount, chainId)` for ETH
+  - Call `treasury.sendERC20(walletAddress, tokenAddress, amount, chainId)` for USDC
+  - Check treasury balance before sending — return `503` if insufficient
+  - Save DB with `status: "pending"` and real `txHash`
+
+- [ ] `OnrampForm` — update chain selector to show testnet chains only (Sepolia, Base Sepolia, etc.)
+  - Show "switch network" prompt if user wallet is on wrong chain
+  - Poll `GET /api/transactions/:id` after confirm until status is final
+  - Show Etherscan testnet link on success
 
 ### Acceptance Criteria
 - [x] Quote updates when fiat amount changes
 - [x] Fee breakdown shows platform fee + network fee
-- [x] Confirming saves transaction to DB
-- [x] Transaction appears in history page immediately
 - [x] Amount below $10 shows validation error
+- [ ] Chain selector shows testnet chains (Sepolia, Base Sepolia, Arbitrum Sepolia, Polygon Amoy)
+- [ ] Confirming triggers real treasury transaction (not random hash)
+- [ ] txHash verifiable on correct testnet block explorer
+- [ ] Status stays "pending" until on-chain confirmed, then shows "completed"
+- [ ] Transaction appears in history with explorer link
+
+---
+
+## Layer 2 — Backend Utilities (TODO — do after Phase 1 testnet updates)
+
+> These are shared backend utilities used by multiple features. Build once, reuse everywhere.
+> Do this before implementing Phase 2 or Phase 3 testnet execution.
+
+### `src/lib/treasury.ts` (new file)
+
+- [ ] Create viem `walletClient` from `TREASURY_PRIVATE_KEY` + Alchemy RPC
+- [ ] `sendNative(to, amountWei, chainId)` — send ETH/MATIC from treasury to user
+- [ ] `sendERC20(to, tokenAddress, amountWei, chainId)` — send USDC via ERC-20 `transfer()`
+- [ ] `getTreasuryBalance(chainId)` — check native + USDC balance before sending
+- [ ] Guard: throw if `TREASURY_PRIVATE_KEY` is not set (fail at startup, not at runtime)
+
+### `src/app/api/transactions/[id]/route.ts` (new file)
+
+- [ ] `GET /api/transactions/:id` — return single transaction from DB by ID
+- [ ] If `status === "pending"` → call Alchemy RPC `getTransactionReceipt(txHash, chainId)`
+  - Receipt + success → update DB to `"completed"`, return `"completed"`
+  - Receipt + reverted → update DB to `"failed"`, return `"failed"`
+  - No receipt → return `"pending"` (keep polling)
+- [ ] Return `404` if transaction not found
+- [ ] For bridge transactions: also check CCIP message status (Phase 4)
 
 ---
 
 ## Phase 3 — Swap
 
-**Goal:** User can get real swap quotes from 1inch and simulate execution.
+**Goal:** User can get real swap quotes from 1inch and execute a real swap on Uniswap V3 Sepolia.
 
-### Tasks
+### Foundation (Done ✅)
 
-- [x] Setup 1inch API client in `src/lib/oneinch.ts`:
-  - `getSwapQuote(params)` function
-  - Handle 1inch error responses
-  - TypeScript types for 1inch API response
-- [x] Create `GET /api/swap/quote` route:
-  - Validate query params with Zod
-  - Proxy to 1inch API
-  - Transform response to `SwapQuote` type
-- [x] Create `POST /api/swap/execute` route:
-  - Validate input
-  - Save Transaction to DB
-  - Return transaction ID
-- [x] Create `useSwapQuote` hook:
-  - 500ms debounce on amount input
-  - 15s auto-refresh
-  - Cancel previous request on new input
-- [x] Create `TokenSelector` component (`src/components/shared/TokenSelector.tsx`):
-  - Shows token logo, symbol, name
-  - Shows user's balance for each token
-  - Searchable dropdown
-- [x] Create `SwapForm` component (`src/components/swap/SwapForm.tsx`):
-  - From token + amount input
-  - To token display (read-only)
-  - Quote details: output amount, price impact, route, gas
-  - Price impact warning (yellow > 1%, red > 3%)
-  - Slippage settings
-  - Swap button (disabled if no wallet, insufficient balance, same token)
-- [x] Create `useTokenBalance` hook (reads on-chain ERC-20 balance)
+- [x] Setup 1inch API client in `src/lib/oneinch.ts`
+- [x] Create `GET /api/swap/quote` route (proxies 1inch, returns `SwapQuote`)
+- [x] Create `POST /api/swap/execute` route (saves to DB)
+- [x] Create `useSwapQuote` hook (debounced 500ms, 15s auto-refresh)
+- [x] Create `TokenSelector` component
+- [x] Create `SwapForm` component (quote display, price impact warning, slippage)
+- [x] Create `useTokenBalance` hook
 - [x] Create Swap page (`src/app/swap/page.tsx`)
 
+### Testnet Execution (TODO — start here 👇 after Phase 1 updates)
+
+> These tasks upgrade the existing simulation to real Uniswap V3 execution on Sepolia.
+> **Prerequisite:** Phase 1 Testnet Foundation Updates harus selesai dulu.
+> **Order matters** — do them top to bottom.
+
+**Step 1 — Create `GET /api/transactions/[id]` route:**
+- [ ] `src/app/api/transactions/[id]/route.ts` — returns single transaction from DB
+- [ ] If status is `"pending"`, check on-chain receipt via Alchemy RPC (viem `getTransactionReceipt`)
+- [ ] If receipt found + success → update DB status to `"completed"`, return `"completed"`
+- [ ] If receipt found + reverted → update DB status to `"failed"`, return `"failed"`
+- [ ] If no receipt → return `"pending"` unchanged
+
+**Step 3 — Update `POST /api/swap/execute` to accept real txHash:**
+- [ ] Add `txHash` field to `ExecuteSchema` (required, `0x` hex string)
+- [ ] Remove `randomBytes` txHash generation
+- [ ] Change `status` from `"completed"` to `"pending"` when saving to DB
+- [ ] Update `chainId` enum to accept testnet IDs (`11155111`, etc.)
+
+**Step 4 — Add Uniswap V3 execution in `SwapForm.tsx`:**
+- [ ] Add chain detection — show "Switch to Sepolia" button if user is on wrong chain (`useSwitchChain`)
+- [ ] Add allowance check — call `useReadContract` on USDC `allowance(owner, spender)` before swap
+- [ ] If allowance < fromAmount → call `useWriteContract` for `approve(SwapRouter02, amount)` + wait for confirmation
+- [ ] Call `useWriteContract` for `exactInputSingle(params)` on SwapRouter02 Sepolia (`0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E`)
+- [ ] After swap tx confirmed → call `POST /api/swap/execute` with real `txHash`
+- [ ] Poll `GET /api/transactions/:id` every 3 seconds until status is final
+- [ ] Show Sepolia Etherscan link (`https://sepolia.etherscan.io/tx/{txHash}`) in success state
+
+**Step 5 — Update transaction history:**
+- [ ] `TransactionTable` or History page — link txHash to correct testnet explorer based on chain
+
 ### Acceptance Criteria
-- [ ] Quotes fetch from real 1inch API (not mocked)
+- [ ] Swap page shows real 1inch quotes (not mocked)
 - [ ] Quote shows DEX routing (e.g., "80% Uniswap V3 + 20% Curve")
-- [ ] Price impact warning appears when impact > 1%
-- [ ] Quote auto-refreshes every 15 seconds
-- [ ] Swap disabled when same token selected on both sides
-- [ ] User is prompted to switch to Sepolia if on wrong network
-- [ ] If token requires approval, user sees approve tx first, then swap tx
-- [ ] After swap broadcast, txHash is submitted to `/api/swap/execute`
-- [ ] Completed swap appears in history with real Sepolia Etherscan link
-- [ ] TypeScript compiles with zero errors (`npx tsc --noEmit`)
+- [ ] Price impact warning appears when > 1%
+- [ ] User on wrong network sees "Switch to Sepolia" button
+- [ ] ERC-20 swap: user signs approve tx first, then swap tx (2 popups)
+- [ ] ETH swap: user signs only swap tx (1 popup)
+- [ ] Real txHash verifiable on Sepolia Etherscan
+- [ ] Transaction appears in history with correct status
+- [ ] `npx tsc --noEmit` zero errors
 
 ---
 

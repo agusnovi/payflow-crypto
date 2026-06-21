@@ -2,7 +2,9 @@
 // Primitives
 // ─────────────────────────────────────────
 
-export type ChainId = 1 | 137 | 8453 | 42161
+export type MainnetChainId = 1 | 137 | 8453 | 42161
+export type TestnetChainId = 11155111 | 84532 | 421614 | 80002
+export type ChainId = MainnetChainId | TestnetChainId
 
 export type FiatCurrency = "USD" | "IDR"
 
@@ -79,7 +81,7 @@ export interface OnrampRequest {
 
 export interface OnrampExecuteResult {
   transactionId: string
-  status: "completed"
+  status: "pending" | "completed" | "failed"
   txHash: string
   createdAt: string
 }
@@ -127,7 +129,8 @@ export interface BridgeQuote {
   fromAmount: string
   toAmount: string
   toAmountFormatted: string
-  feeUSD: string
+  ccipFeeWei: string
+  ccipFeeFormatted: string
   estimatedSeconds: number
   estimatedTimeFormatted: string
   bridgeProtocol: string

@@ -1,11 +1,14 @@
-import type { ChainConfig, ChainId, Token } from "@/types"
+import type { ChainConfig, ChainId, MainnetChainId, TestnetChainId, Token } from "@/types"
 
 // Used by 1inch and wagmi to represent native tokens (ETH, MATIC)
 export const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
-export const SUPPORTED_CHAIN_IDS = [1, 137, 8453, 42161] as const satisfies ChainId[]
+export const MAINNET_CHAIN_IDS = [1, 137, 8453, 42161] as const satisfies MainnetChainId[]
+export const TESTNET_CHAIN_IDS = [11155111, 84532, 421614, 80002] as const satisfies TestnetChainId[]
+export const SUPPORTED_CHAIN_IDS = [...MAINNET_CHAIN_IDS, ...TESTNET_CHAIN_IDS] as const satisfies ChainId[]
 
 export const SUPPORTED_CHAINS = {
+  // ── Mainnet ──────────────────────────────────────────────
   1: {
     id: 1,
     name: "Ethereum",
@@ -30,9 +33,35 @@ export const SUPPORTED_CHAINS = {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     blockExplorerUrl: "https://arbiscan.io",
   },
+  // ── Testnet ──────────────────────────────────────────────
+  11155111: {
+    id: 11155111,
+    name: "Sepolia",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrl: "https://sepolia.etherscan.io",
+  },
+  84532: {
+    id: 84532,
+    name: "Base Sepolia",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrl: "https://sepolia.basescan.org",
+  },
+  421614: {
+    id: 421614,
+    name: "Arbitrum Sepolia",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrl: "https://sepolia.arbiscan.io",
+  },
+  80002: {
+    id: 80002,
+    name: "Polygon Amoy",
+    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+    blockExplorerUrl: "https://amoy.polygonscan.com",
+  },
 } satisfies Record<ChainId, ChainConfig>
 
 export const COMMON_TOKENS: Record<ChainId, Token[]> = {
+  // ── Mainnet ──────────────────────────────────────────────
   // Ethereum
   1: [
     {
@@ -178,10 +207,87 @@ export const COMMON_TOKENS: Record<ChainId, Token[]> = {
       chainId: 42161,
     },
   ],
+  // ── Testnet ──────────────────────────────────────────────
+  // Sepolia (Ethereum testnet)
+  11155111: [
+    {
+      symbol: "ETH",
+      name: "Ether",
+      address: NATIVE_TOKEN_ADDRESS,
+      decimals: 18,
+      chainId: 11155111,
+    },
+    {
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      decimals: 6,
+      chainId: 11155111,
+    },
+  ],
+  // Base Sepolia
+  84532: [
+    {
+      symbol: "ETH",
+      name: "Ether",
+      address: NATIVE_TOKEN_ADDRESS,
+      decimals: 18,
+      chainId: 84532,
+    },
+    {
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      decimals: 6,
+      chainId: 84532,
+    },
+  ],
+  // Arbitrum Sepolia
+  421614: [
+    {
+      symbol: "ETH",
+      name: "Ether",
+      address: NATIVE_TOKEN_ADDRESS,
+      decimals: 18,
+      chainId: 421614,
+    },
+    {
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+      decimals: 6,
+      chainId: 421614,
+    },
+  ],
+  // Polygon Amoy
+  80002: [
+    {
+      symbol: "MATIC",
+      name: "MATIC",
+      address: NATIVE_TOKEN_ADDRESS,
+      decimals: 18,
+      chainId: 80002,
+    },
+    {
+      symbol: "USDC",
+      name: "USD Coin",
+      address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+      decimals: 6,
+      chainId: 80002,
+    },
+  ],
 }
 
 export function isValidChainId(id: number): id is ChainId {
   return (SUPPORTED_CHAIN_IDS as readonly number[]).includes(id)
+}
+
+export function isTestnetChainId(id: number): id is TestnetChainId {
+  return (TESTNET_CHAIN_IDS as readonly number[]).includes(id)
+}
+
+export function isMainnetChainId(id: number): id is MainnetChainId {
+  return (MAINNET_CHAIN_IDS as readonly number[]).includes(id)
 }
 
 export function getChainName(chainId: ChainId): string {
