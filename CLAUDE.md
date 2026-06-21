@@ -14,7 +14,10 @@ PayFlow is a simplified implementation of Halliday Payments, supporting:
 - **Bridge** — move assets across different blockchains
 - **Workflow Builder** — compose multiple steps into a single automated payment flow (inspired by Halliday's Workflow Protocol)
 
-The project is intentionally scoped for portfolio demonstration. Onramp and Bridge are simulated; Swap uses real 1inch API quotes.
+The project is intentionally scoped for portfolio demonstration. All three execution flows use real testnet transactions:
+- **Onramp**: treasury wallet sends real testnet ETH/USDC to user's wallet (simulates receiving fiat)
+- **Swap**: user signs directly with Uniswap V3 on Sepolia (approve + swap — server does not execute)
+- **Bridge**: user signs directly with Chainlink CCIP (user is the sender, no treasury needed)
 
 ---
 
@@ -40,10 +43,12 @@ The project is intentionally scoped for portfolio demonstration. Onramp and Brid
 **External APIs:**
 | Service | Purpose | Docs |
 |---|---|---|
-| Alchemy | RPC provider (Ethereum, Base, Polygon, Arbitrum) | https://docs.alchemy.com |
+| Alchemy | RPC provider (Ethereum, Base, Polygon, Arbitrum + testnets) | https://docs.alchemy.com |
 | 1inch | Swap quote aggregation | https://portal.1inch.dev |
 | CoinGecko | Token price in USD/IDR | https://docs.coingecko.com |
 | Reown (WalletConnect) | Wallet relay server | https://dashboard.reown.com |
+| Uniswap V3 | Swap execution on Sepolia testnet (SwapRouter02 + Quoter V2) | https://docs.uniswap.org |
+| Chainlink CCIP | Cross-chain bridge on testnet (Sepolia ↔ Base/Arbitrum/Amoy) | https://docs.chain.link/ccip |
 
 ---
 
@@ -147,11 +152,16 @@ ONEINCH_API_KEY=                        # from portal.1inch.dev
 COINGECKO_API_KEY=                      # from coingecko.com/en/api
 DATABASE_URL="file:./dev.db"
 
+# Treasury wallet — onramp execution only
+TREASURY_PRIVATE_KEY=                   # server-only: wallet that sends testnet tokens to users
+
 # Optional
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 Variables prefixed with `NEXT_PUBLIC_` are exposed to the browser. Never put secret keys in `NEXT_PUBLIC_` variables.
+
+> **CRITICAL:** `TREASURY_PRIVATE_KEY` must NEVER use `NEXT_PUBLIC_` prefix. It is only read in API routes, never returned in responses, and never logged.
 
 ---
 
@@ -180,22 +190,33 @@ npm run db:studio
 
 ## 6. Key Concepts (Project-Specific)
 
-### Onramp (Simulated)
-- User inputs fiat amount + currency (USD/IDR)
-- Backend calculates crypto amount using CoinGecko price + fee
-- Transaction is saved to DB with status `completed` (simulation — no real fiat charged)
-- No real payment provider integrated (Moonpay etc. would be the real equivalent)
+### Onramp (Treasury-Backed Testnet)
+- User inputs fiat amount + currency (USD/IDR) and selects a testnet chain
+- Backend calculates crypto amount using CoinGecko price + fee (server-side, not trusting frontend)
+- Server broadcasts a real transaction from the treasury wallet to the user's wallet address
+- Transaction saved to DB with status `pending` + real txHash; status updates to `completed` once on-chain confirmed
+- Max per transaction: equivalent of $50 USD (to protect treasury balance)
+- No real fiat charged; treasury holds testnet ETH/USDC funded from public faucets
 
-### Swap (Real Quotes, Simulated Execution)
-- Uses real 1inch API to get live swap quotes
-- User sees real market price, price impact, route
-- Execution is simulated on testnet or mocked — no mainnet funds required
-- Quote expires after 30 seconds; UI must re-fetch
+### Swap (User Signs Uniswap V3 — Sepolia Only)
+- Uses real 1inch API to get live swap quotes (price reference) + Uniswap V3 Quoter for on-chain preview
+- Supported pair on testnet: ETH ↔ USDC on Sepolia only (limited by testnet liquidity)
+- **Frontend handles execution** — server does not broadcast swap transactions:
+  1. Frontend checks if Uniswap router has sufficient ERC-20 allowance
+  2. If not → prompts user to sign `approve` transaction
+  3. Prompts user to sign `swap` transaction to Uniswap SwapRouter02
+- After user broadcasts, frontend sends txHash to `POST /api/swap/execute` which only saves to DB
+- Both approve and swap txHashes are verifiable on Sepolia Etherscan
 
-### Bridge (Simulated)
-- Both quote and execution are simulated
-- Fee and time estimates are deterministic based on chain pair
-- Saves transaction to DB with realistic status progression: `pending` → `processing` → `completed`
+### Bridge (User Signs Chainlink CCIP)
+- Uses Chainlink CCIP protocol for real cross-chain transfers on testnet
+- Supported lanes: Sepolia ↔ Base Sepolia, Sepolia ↔ Arbitrum Sepolia, Sepolia ↔ Polygon Amoy
+- **Frontend handles execution** — user signs directly with CCIP router contract:
+  1. If bridging ERC-20 → prompts `approve` tx for CCIP router allowance
+  2. Prompts user to sign `ccipSend` transaction (pays fee in native token)
+- After broadcast, frontend sends txHash to `POST /api/bridge/execute` which saves to DB + tracks CCIP message
+- Frontend polls `GET /api/transactions/:id` every 3s; server checks CCIP message status
+- Status progression: `pending` (tx sent) → `completed` (token arrived at destination)
 
 ### Workflow
 - Composed of ordered steps: each step is onramp, swap, bridge, or transfer
@@ -236,6 +257,8 @@ npm run db:studio
 
 ## 9. Supported Chains
 
+**Mainnet (read-only — balance display, price quotes):**
+
 | Chain | ID | Native Token | Status |
 |---|---|---|---|
 | Ethereum | 1 | ETH | ✅ Supported |
@@ -244,6 +267,15 @@ npm run db:studio
 | Arbitrum | 42161 | ETH | ✅ Supported |
 | Optimism | 10 | ETH | 🔜 Phase 2 |
 | BNB Chain | 56 | BNB | 🔜 Phase 2 |
+
+**Testnet (transaction execution — onramp, swap, bridge):**
+
+| Testnet | Chain ID | Maps to Mainnet | Native Token | USDC Address |
+|---|---|---|---|---|
+| Sepolia | 11155111 | Ethereum (1) | ETH | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| Base Sepolia | 84532 | Base (8453) | ETH | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+| Arbitrum Sepolia | 421614 | Arbitrum (42161) | ETH | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
+| Polygon Amoy | 80002 | Polygon (137) | MATIC | `0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582` |
 
 ---
 

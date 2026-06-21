@@ -167,6 +167,7 @@ export default function DashboardPage() {
   })
 
   const allSymbols = tokens.map((t) => t.symbol)
+
   const { data: prices } = useTokenPrices(allSymbols, isConnected)
 
   const nativeAmt = nativeBalance ? parseFloat(formatUnits(nativeBalance.value, 18)) : 0

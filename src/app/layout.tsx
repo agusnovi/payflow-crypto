@@ -1,10 +1,8 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { headers } from "next/headers"
-import { cookieToInitialState } from "wagmi"
 import "./globals.css"
 
-import { wagmiConfig } from "@/lib/wagmi"
 import { Navbar } from "@/components/layout/Navbar"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { Web3Provider } from "@/components/providers/Web3Provider"
@@ -29,13 +27,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const cookie = (await headers()).get("cookie")
-  const initialState = cookieToInitialState(wagmiConfig, cookie)
+  const cookie = (await headers()).get("cookie") ?? undefined
 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-950 text-white`}>
-        <Web3Provider initialState={initialState}>
+        <Web3Provider cookie={cookie}>
           <Navbar />
           <div className="flex min-h-[calc(100vh-4rem)]">
             <Sidebar />

@@ -1,5 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit"
-import { http } from "wagmi"
+import { http, cookieStorage, createStorage } from "wagmi"
 import { arbitrum, base, mainnet, polygon } from "wagmi/chains"
 
 const ALCHEMY_ID = process.env.NEXT_PUBLIC_ALCHEMY_ID ?? ""
@@ -20,4 +20,5 @@ export const wagmiConfig = getDefaultConfig({
     [arbitrum.id]: http(alchemyRpc("arb-mainnet")),
   },
   ssr: true,
+  storage: createStorage({ storage: cookieStorage }),
 })

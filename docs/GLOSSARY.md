@@ -1,7 +1,7 @@
 # Glossary — PayFlow Crypto
 
-**Version:** 1.0
-**Last Updated:** 2026-06-16
+**Version:** 1.1
+**Last Updated:** 2026-06-21
 
 > Reference for crypto and project-specific terminology used throughout this codebase and its documentation.
 
@@ -18,6 +18,16 @@ The specification that defines how to interact with a smart contract — what fu
 ### Aggregator
 A service that queries multiple DEXes simultaneously and returns the best price. 1inch is an aggregator. Users get better rates than going to a single DEX directly.
 
+### Allowance (ERC-20)
+The amount of tokens a wallet has authorized a smart contract (spender) to transfer on its behalf. Before swapping or bridging an ERC-20 token, the user must call `approve(spender, amount)` to grant allowance to the DEX router or CCIP router. If the current allowance is already sufficient, the approve step is skipped.
+
+### Approve (ERC-20 Flow)
+The two-transaction pattern required for DEX swaps and CCIP bridges involving ERC-20 tokens:
+1. **Approve tx**: User signs `token.approve(routerAddress, amount)` — authorizes the router to spend tokens
+2. **Swap/bridge tx**: User signs the actual operation
+
+PayFlow checks current allowance first. If `allowance >= amount`, the approve step is skipped and only one tx is needed.
+
 ---
 
 ## B
@@ -32,7 +42,7 @@ JavaScript's native type for arbitrarily large integers. Used in this project fo
 A batch of transactions permanently recorded on the blockchain. Each new block adds to the chain. Block time varies by chain (Ethereum ~12s, Base ~2s, Polygon ~2s).
 
 ### Bridge
-The process of moving tokens from one blockchain to another. Since blockchains cannot communicate directly, bridge protocols lock tokens on chain A and mint equivalent tokens on chain B. In PayFlow, bridge is simulated.
+The process of moving tokens from one blockchain to another. Since blockchains cannot communicate directly, bridge protocols lock tokens on chain A and mint equivalent tokens on chain B. In PayFlow, bridge uses Chainlink CCIP on testnets — the user signs the CCIP send transaction directly.
 
 ### BNB Chain
 A blockchain created by Binance. Chain ID: 56. Native currency: BNB. Popular in Asia. Supported in PayFlow Phase 2.
@@ -48,7 +58,13 @@ A crypto exchange run by a company (Binance, Coinbase, Tokocrypto). Has a centra
 Short for "blockchain." In this project, "chain" refers to a specific blockchain network. See `ChainId`.
 
 ### Chain ID
-A unique integer that identifies a blockchain network. Used by wallets and RPC nodes to prevent cross-chain transaction replay. Examples: Ethereum = 1, Polygon = 137, Base = 8453, Arbitrum = 42161.
+A unique integer that identifies a blockchain network. Used by wallets and RPC nodes to prevent cross-chain transaction replay. Examples: Ethereum = 1, Polygon = 137, Base = 8453, Arbitrum = 42161. Testnet examples: Sepolia = 11155111, Base Sepolia = 84532, Arbitrum Sepolia = 421614, Polygon Amoy = 80002.
+
+### Chain Selector (CCIP)
+A different identifier used by Chainlink CCIP to reference chains — NOT the same as Chain ID. Each chain has a unique 64-bit chain selector. The CCIP router uses chain selectors (not chain IDs) to identify destination chains. Mapping is defined in `src/lib/bridge.ts`.
+
+### Chainlink CCIP (Cross-Chain Interoperability Protocol)
+Chainlink's cross-chain messaging and token transfer protocol. Used in PayFlow for all bridge operations on testnet. The user calls `IRouterClient.ccipSend()` on the source chain; CCIP handles the message relay and token delivery on the destination chain. Fees are paid in native token by the user.
 
 ### Composable
 The ability to combine multiple operations (onramp, swap, bridge) as building blocks into a single automated flow. This is the core concept of Halliday's Workflow Protocol and PayFlow's Workflow Builder.
@@ -89,11 +105,15 @@ The computation environment that executes smart contracts on Ethereum and EVM-co
 
 ## F
 
+### Faucet
+A service that distributes free testnet tokens for development and testing. No real value. Examples: `faucets.alchemy.com` (Sepolia ETH), `faucet.circle.com` (testnet USDC), `faucets.chain.link` (testnet LINK). PayFlow's treasury wallet is funded from these faucets.
+
 ### Fiat
 Traditional government-issued currency. USD, EUR, IDR, SGD. Not on the blockchain. Converted to crypto via onramp providers.
 
 ### Finality
-The point at which a transaction is irreversible. Varies by chain: Ethereum ~15 minutes (after 32 slots), Base/Arbitrum have "soft finality" in seconds but "hard finality" only after 7 days (challenge period). In PayFlow simulations, finality is immediate.
+The point at which a transaction is irreversible. Varies by chain: Ethereum ~15 minutes (after 32 slots), Base/Arbitrum have "soft finality" in seconds but "hard finality" only after 7 days (challenge period). PayFlow polls for 1 confirmation as sufficient for testnet purposes.
+
 
 ---
 
@@ -116,7 +136,7 @@ The maximum amount of gas a user is willing to spend on a transaction. If the tx
 The target company for this portfolio project. A blockchain company building a unified cross-chain payments ecosystem. Their flagship product (Halliday Payments) and Workflow Protocol are the direct inspiration for PayFlow.
 
 ### Hash / Tx Hash
-A unique 32-byte identifier for a transaction, represented as a 66-character hex string (0x + 64 chars). Used to look up a transaction on a block explorer. In PayFlow simulations, we generate fake hashes prefixed with `0xsimulated_`.
+A unique 32-byte identifier for a transaction, represented as a 66-character hex string (0x + 64 chars). Used to look up a transaction on a block explorer. In PayFlow, all txHashes are real testnet transactions verifiable on Sepolia Etherscan, BaseScan Sepolia, etc.
 
 ---
 
@@ -159,7 +179,7 @@ A sequential counter for each wallet's transactions. Every new transaction from 
 ## O
 
 ### Onramp
-The process of converting fiat currency (USD, IDR) into crypto. The entry point into the crypto ecosystem. Real providers: Moonpay, Ramp Network, Transak. In PayFlow, onramp is simulated.
+The process of converting fiat currency (USD, IDR) into crypto. The entry point into the crypto ecosystem. Real providers: Moonpay, Ramp Network, Transak. In PayFlow, onramp is backed by a treasury wallet that sends real testnet tokens to the user's wallet — simulating fiat receipt without requiring a real payment processor.
 
 ### Optimistic Rollup
 A type of L2 that assumes transactions are valid by default and only verifies them if challenged. Base and Arbitrum are optimistic rollups. Has a 7-day withdrawal challenge period back to Ethereum L1.
@@ -213,6 +233,12 @@ A token pegged to a stable asset (usually USD). USDC and USDT are pegged 1:1 to 
 ### TanStack Query (React Query)
 The data-fetching library used in PayFlow for all server state management. Provides caching, background refetching, and loading/error states for API calls.
 
+### Testnet
+A blockchain network used for development and testing. Has no real monetary value — tokens are free from faucets. Testnets are separate chains from mainnet and have different chain IDs. PayFlow uses 4 testnets: Sepolia (Ethereum), Base Sepolia, Arbitrum Sepolia, Polygon Amoy. Transactions on testnet are real blockchain transactions but with no monetary risk.
+
+### Treasury Wallet
+A server-controlled wallet used in PayFlow for onramp execution. The private key is stored in `TREASURY_PRIVATE_KEY` (server-only env var). When a user confirms an onramp, the server sends testnet ETH or USDC from this wallet to the user's wallet address. The treasury is funded from public faucets. Only used for onramp — swap and bridge are signed directly by the user's wallet.
+
 ### Token
 A digital asset on a blockchain. Can represent currency (USDC), governance rights (UNI), or anything else. ERC-20 is the standard for fungible tokens.
 
@@ -227,7 +253,7 @@ The total value of crypto assets deposited in a DeFi protocol. Used as a measure
 ## U
 
 ### Uniswap
-The largest DEX on Ethereum and most L2 chains. Pioneered the automated market maker (AMM) model. V3 uses concentrated liquidity for better capital efficiency.
+The largest DEX on Ethereum and most L2 chains. Pioneered the automated market maker (AMM) model. V3 uses concentrated liquidity for better capital efficiency. PayFlow uses Uniswap V3 on Sepolia testnet for swap execution — specifically `SwapRouter02` for executing swaps and `Quoter V2` for previewing output amounts.
 
 ### USDC (USD Coin)
 A stablecoin pegged 1:1 to USD, issued by Circle. The primary stablecoin in PayFlow. Different contract addresses on each chain.

@@ -1,6 +1,6 @@
 # API Specification — PayFlow Crypto
 
-**Version:** 1.0
+**Version:** 1.1
 **Base URL:** `http://localhost:3000` (dev) / `https://payflow-crypto.vercel.app` (prod)
 **Content-Type:** `application/json` for all requests and responses
 
@@ -98,19 +98,20 @@ curl -X POST http://localhost:3000/api/onramp/quote \
 
 #### `POST /api/onramp/execute`
 
-Simulate completing the onramp and save to DB.
+Execute the onramp: server recalculates the crypto amount server-side, broadcasts a real transaction from the treasury wallet to the user's wallet on the selected testnet, and saves to DB.
 
 **Request Body:**
 ```json
 {
   "fiatAmount": 100,
   "fiatCurrency": "USD",
-  "cryptoAmount": "98500000",
   "cryptoSymbol": "USDC",
-  "chainId": 137,
+  "chainId": 11155111,
   "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 }
 ```
+
+> `cryptoAmount` is intentionally excluded from the request — the server recalculates it to prevent manipulation. `chainId` must be a testnet chain ID (`11155111`, `84532`, `421614`, `80002`).
 
 **Success Response `200`:**
 ```json
@@ -118,11 +119,22 @@ Simulate completing the onramp and save to DB.
   "success": true,
   "data": {
     "transactionId": "clxyz123abc",
-    "status": "completed",
-    "txHash": "0xsimulated_abc123",
+    "status": "pending",
+    "txHash": "0xabc123...",
     "createdAt": "2026-06-16T10:00:00.000Z"
   }
 }
+```
+
+> `status` starts as `"pending"`. Poll `GET /api/transactions/:id` every 3 seconds until status is `"completed"` or `"failed"`. The `txHash` is a real testnet transaction verifiable on the appropriate testnet block explorer.
+
+**Error Responses:**
+```json
+// 400 - Unsupported chain (mainnet)
+{ "success": false, "error": "chainId 1 is not a supported testnet" }
+
+// 503 - Treasury insufficient balance
+{ "success": false, "error": "Treasury balance insufficient. Contact admin." }
 ```
 
 ---
@@ -201,19 +213,22 @@ curl "http://localhost:3000/api/swap/quote?fromToken=0xEeee...EEeE&toToken=0xA0b
 
 #### `POST /api/swap/execute`
 
-Simulate swap execution and save to DB.
+Save a completed swap to DB. The frontend (not server) executes the swap transaction — this endpoint only persists the result after the user has signed and broadcast the tx.
 
 **Request Body:**
 ```json
 {
   "fromToken": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-  "toToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "toToken": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
   "fromAmount": "100000000000000000",
   "toAmount": "324150000",
-  "chainId": 1,
-  "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+  "chainId": 11155111,
+  "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  "txHash": "0xabc123..."
 }
 ```
+
+> `txHash` is required — this is the real transaction hash from the user's wallet after signing the Uniswap swap. The server does not broadcast anything for swap.
 
 **Success Response `200`:**
 ```json
@@ -221,11 +236,19 @@ Simulate swap execution and save to DB.
   "success": true,
   "data": {
     "transactionId": "clxyz456def",
-    "status": "completed",
-    "txHash": "0xsimulated_def456",
+    "status": "pending",
+    "txHash": "0xabc123...",
     "createdAt": "2026-06-16T10:01:00.000Z"
   }
 }
+```
+
+> Poll `GET /api/transactions/:id` until status is `"completed"` or `"failed"`.
+
+**Error Responses:**
+```json
+// 400 - Missing txHash
+{ "success": false, "error": "txHash is required" }
 ```
 
 ---
@@ -234,14 +257,14 @@ Simulate swap execution and save to DB.
 
 #### `POST /api/bridge/quote`
 
-Get simulated bridge quote for cross-chain transfer.
+Get a bridge quote for a cross-chain transfer via Chainlink CCIP. Returns the CCIP fee (paid in native token by the user) and estimated transfer time.
 
 **Request Body:**
 ```json
 {
-  "fromChain": 1,
-  "toChain": 8453,
-  "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "fromChain": 11155111,
+  "toChain": 84532,
+  "token": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
   "amount": "100000000",
   "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
 }
@@ -249,9 +272,9 @@ Get simulated bridge quote for cross-chain transfer.
 
 | Field | Type | Required | Validation |
 |---|---|---|---|
-| `fromChain` | `number` | ✅ | valid chainId |
-| `toChain` | `number` | ✅ | valid chainId, different from fromChain |
-| `token` | `string` | ✅ | valid token address |
+| `fromChain` | `number` | ✅ | testnet chainId (11155111, 84532, 421614, 80002) |
+| `toChain` | `number` | ✅ | testnet chainId, different from fromChain |
+| `token` | `string` | ✅ | valid testnet token address |
 | `amount` | `string` | ✅ | positive integer string (wei) |
 | `walletAddress` | `string` | ✅ | valid Ethereum address |
 
@@ -260,38 +283,53 @@ Get simulated bridge quote for cross-chain transfer.
 {
   "success": true,
   "data": {
-    "fromChain": 1,
-    "toChain": 8453,
-    "fromToken": { "symbol": "USDC", "address": "0xA0b8...", "chainId": 1 },
-    "toToken": { "symbol": "USDC", "address": "0x8335...", "chainId": 8453 },
+    "fromChain": 11155111,
+    "toChain": 84532,
+    "fromToken": { "symbol": "USDC", "address": "0x1c7D...", "chainId": 11155111 },
+    "toToken": { "symbol": "USDC", "address": "0x036C...", "chainId": 84532 },
     "fromAmount": "100000000",
-    "toAmount": "98200000",
-    "toAmountFormatted": "98.20",
-    "feeUSD": "1.80",
-    "estimatedSeconds": 180,
-    "estimatedTimeFormatted": "~3 minutes",
-    "bridgeProtocol": "PayFlow Bridge (Simulated)",
+    "toAmount": "100000000",
+    "toAmountFormatted": "100.00",
+    "ccipFeeWei": "1200000000000000",
+    "ccipFeeFormatted": "0.0012 ETH",
+    "estimatedSeconds": 900,
+    "estimatedTimeFormatted": "~15 minutes",
+    "bridgeProtocol": "Chainlink CCIP",
     "expiresAt": 1718500030
   }
 }
 ```
+
+> CCIP fee is paid in native token (ETH) by the user on the source chain. The fee is fetched from the CCIP Router contract. Unlike simulated bridges, CCIP transfers the exact same amount — no bridge fee deducted from the token amount.
 
 **Error Responses:**
 ```json
 // 400 - Same chain
 { "success": false, "error": "fromChain and toChain must be different" }
 
-// 400 - Unsupported route
-{ "success": false, "error": "Bridge route from chain 1 to chain 56 is not supported" }
+// 400 - Unsupported CCIP lane
+{ "success": false, "error": "CCIP lane from chain 11155111 to chain 80002 is not supported" }
 ```
 
 ---
 
 #### `POST /api/bridge/execute`
 
-Simulate bridge execution with progressive status updates saved to DB.
+Save a bridge transaction to DB after the user has signed and broadcast the CCIP transaction. The frontend (not server) executes the CCIP send — this endpoint persists the result and starts tracking the CCIP message.
 
-**Request Body:** Same fields as bridge quote.
+**Request Body:**
+```json
+{
+  "fromChain": 11155111,
+  "toChain": 84532,
+  "token": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+  "amount": "100000000",
+  "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  "txHash": "0xabc123..."
+}
+```
+
+> `txHash` is required — this is the real source-chain transaction hash from the user's MetaMask after signing the CCIP send. The server does not broadcast anything for bridge.
 
 **Success Response `200`:**
 ```json
@@ -300,14 +338,14 @@ Simulate bridge execution with progressive status updates saved to DB.
   "data": {
     "transactionId": "clxyz789ghi",
     "status": "pending",
-    "txHash": "0xsimulated_ghi789",
-    "estimatedCompletionAt": "2026-06-16T10:05:00.000Z",
+    "txHash": "0xabc123...",
+    "estimatedCompletionAt": "2026-06-16T10:17:00.000Z",
     "createdAt": "2026-06-16T10:02:00.000Z"
   }
 }
 ```
 
-> Bridge status transitions (`pending` → `processing` → `completed`) happen via a simulated background job. Poll `GET /api/transactions/:id` for updates.
+> Poll `GET /api/transactions/:id` every 3 seconds. Status goes `"pending"` (source tx confirmed) → `"completed"` (token arrived at destination). The CCIP message ID is stored in `metadata.ccipMessageId` for debugging.
 
 ---
 
@@ -509,7 +547,13 @@ List all transactions for a wallet with optional filtering.
 
 #### `GET /api/transactions/[id]`
 
-Get a single transaction by ID.
+Get a single transaction by ID. When the transaction status is `"pending"`, the server also checks the on-chain receipt via Alchemy RPC and updates the DB status before responding. This makes it safe to use as a polling endpoint.
+
+**Polling behavior:**
+- `"pending"` + no on-chain receipt → returns `"pending"` (keep polling)
+- `"pending"` + receipt with `status: "success"` → updates DB to `"completed"`, returns `"completed"`
+- `"pending"` + receipt with `status: "reverted"` → updates DB to `"failed"`, returns `"failed"`
+- `"completed"` or `"failed"` → returns immediately from DB (no on-chain check needed)
 
 **Success Response `200`:**
 ```json
@@ -519,19 +563,27 @@ Get a single transaction by ID.
     "id": "clxyz123abc",
     "type": "onramp",
     "status": "completed",
-    "fromChain": "Ethereum",
+    "fromChain": "Sepolia",
     "toChain": null,
     "fromToken": "USD",
     "toToken": "USDC",
     "fromAmount": "100",
     "toAmount": "98500000",
-    "txHash": "0xsimulated_abc123",
+    "txHash": "0xabc123...",
     "walletAddress": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
     "metadata": null,
     "createdAt": "2026-06-16T10:00:00.000Z",
     "updatedAt": "2026-06-16T10:00:00.000Z"
   }
 }
+```
+
+> For bridge transactions, `metadata` contains `ccipMessageId` for debugging on the CCIP explorer.
+
+**Error Response:**
+```json
+// 404 - Not found
+{ "success": false, "error": "Transaction not found" }
 ```
 
 ---

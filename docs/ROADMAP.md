@@ -1,7 +1,7 @@
 # Roadmap — PayFlow Crypto
 
-**Version:** 1.0
-**Last Updated:** 2026-06-16
+**Version:** 1.1
+**Last Updated:** 2026-06-21
 
 ---
 
@@ -9,10 +9,10 @@
 
 | Phase | Focus | Duration | Status |
 |---|---|---|---|
-| Phase 1 | Foundation — project setup, wallet connect, dashboard | Day 1–2 | 🔜 Not Started |
-| Phase 2 | Onramp — fiat to crypto simulation | Day 3 | 🔜 Not Started |
-| Phase 3 | Swap — real 1inch integration | Day 4–5 | 🔜 Not Started |
-| Phase 4 | Bridge — cross-chain simulation | Day 6 | 🔜 Not Started |
+| Phase 1 | Foundation — project setup, wallet connect, dashboard | Day 1–2 | ✅ Completed |
+| Phase 2 | Onramp — treasury-backed testnet execution | Day 3 | ✅ Completed |
+| Phase 3 | Swap — 1inch quotes + Uniswap V3 Sepolia execution | Day 4–5 | 🔄 In Progress |
+| Phase 4 | Bridge — Chainlink CCIP cross-chain on testnet | Day 6 | 🔜 Not Started |
 | Phase 5 | Workflow Builder — composable flows | Day 7–9 | 🔜 Not Started |
 | Phase 6 | Polish & Deploy | Day 10 | 🔜 Not Started |
 
@@ -140,46 +140,63 @@
 - [ ] Price impact warning appears when impact > 1%
 - [ ] Quote auto-refreshes every 15 seconds
 - [ ] Swap disabled when same token selected on both sides
-- [ ] Completed swap appears in history
+- [ ] User is prompted to switch to Sepolia if on wrong network
+- [ ] If token requires approval, user sees approve tx first, then swap tx
+- [ ] After swap broadcast, txHash is submitted to `/api/swap/execute`
+- [ ] Completed swap appears in history with real Sepolia Etherscan link
+- [ ] TypeScript compiles with zero errors (`npx tsc --noEmit`)
 
 ---
 
-## Phase 4 — Bridge
+## Phase 4 — Bridge (Chainlink CCIP)
 
-**Goal:** User can simulate bridging assets between chains with realistic status progression.
+**Goal:** User can bridge assets between testnets via Chainlink CCIP with real cross-chain transactions.
 
 ### Tasks
 
-- [ ] Create bridge fee matrix in `src/lib/bridge.ts` (all 12 supported routes)
+- [ ] Create `src/lib/bridge.ts`:
+  - `CCIP_ROUTERS` — router address per testnet chain
+  - `CCIP_CHAIN_SELECTORS` — CCIP chain selector per chain ID
+  - `SUPPORTED_CCIP_LANES` — valid source→destination pairs
+  - `getCCIPFee(fromChain, toChain, token, amount)` — call `IRouterClient.getFee()` on-chain
 - [ ] Create `POST /api/bridge/quote` route:
-  - Validate input
-  - Look up fee matrix
-  - Return `BridgeQuote`
+  - Validate testnet chain IDs with Zod
+  - Call `getCCIPFee()` for real fee from CCIP Router
+  - Return `BridgeQuote` with `ccipFeeWei`, `estimatedSeconds`, `bridgeProtocol: "Chainlink CCIP"`
 - [ ] Create `POST /api/bridge/execute` route:
-  - Validate input
-  - Save Transaction to DB (status: "pending")
-  - Trigger simulated status progression (setTimeout chain):
-    - After 3s: update to "processing"
-    - After 10s: update to "completed"
+  - Accept `txHash` from frontend (user's signed CCIP tx)
+  - Validate and save Transaction to DB (status: "pending")
+  - Extract `ccipMessageId` from tx receipt logs, store in `metadata`
   - Return transaction ID
-- [ ] Create `ChainSelector` component (`src/components/shared/ChainSelector.tsx`)
+- [ ] Create `GET /api/transactions/:id` route (if not already):
+  - For bridge "pending" tx: check CCIP message status via destination chain or CCIP API
+  - Update DB to "completed" when token arrives at destination
+- [ ] Create `ChainSelector` component (`src/components/shared/ChainSelector.tsx`):
+  - Shows testnet chain name, chain ID
+  - Filters to testnet chains only
 - [ ] Create `BridgeForm` component (`src/components/bridge/BridgeForm.tsx`):
-  - Source chain + token selector
-  - Destination chain selector
+  - Source testnet chain + token selector
+  - Destination testnet chain selector (filters out same chain)
   - Amount input
-  - Quote: received amount, fee, estimated time
-  - Cannot select same chain on both sides
+  - Quote: CCIP fee, estimated time, "Chainlink CCIP" label
+  - Frontend logic: check ERC-20 allowance → approve if needed → call `ccipSend`
+  - After tx broadcast → POST txHash to `/api/bridge/execute`
 - [ ] Create `useBridgeQuote` hook
 - [ ] Create Bridge page (`src/app/bridge/page.tsx`)
 - [ ] Update Transaction History to show bridge status with live polling:
-  - Poll `GET /api/transactions/:id` every 3s for "pending" / "processing" transactions
+  - Poll `GET /api/transactions/:id` every 3s for "pending" transactions
   - Show status badge with animation
+  - Show link to CCIP explorer (`ccip.chain.link`) using `ccipMessageId` from metadata
 
 ### Acceptance Criteria
-- [ ] All 12 bridge routes work (6 chain pairs × 2 directions)
+- [ ] All 6 supported CCIP lanes work (Sepolia ↔ Base/Arbitrum/Amoy, both directions)
 - [ ] Cannot bridge to same chain (validation error)
-- [ ] Bridge status progressively updates: pending → processing → completed
-- [ ] Estimated time shown correctly per route (e.g., 3 min for Ethereum→Base)
+- [ ] Cannot bridge between unsupported chains (e.g., Base Sepolia → Polygon Amoy directly)
+- [ ] User prompted to approve ERC-20 if needed before bridge tx
+- [ ] CCIP fee shown in ETH before confirmation
+- [ ] txHash and ccipMessageId stored in DB
+- [ ] Status updates from "pending" to "completed" when token arrives at destination (~15 min)
+- [ ] History page shows CCIP explorer link for bridge transactions
 
 ---
 
