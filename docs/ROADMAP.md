@@ -135,28 +135,23 @@ Layer 3 — Feature Execution (per fitur, setelah Layer 1+2 selesai)
 
 ---
 
-## Layer 2 — Backend Utilities (TODO — do after Phase 1 testnet updates)
+## Layer 2 — Backend Utilities ✅ Done
 
-> These are shared backend utilities used by multiple features. Build once, reuse everywhere.
-> Do this before implementing Phase 2 or Phase 3 testnet execution.
+### `src/lib/treasury.ts`
+- [x] `getPublicClient(chainId)` — viem publicClient per testnet chain via Alchemy
+- [x] `getTreasuryAddress()` — read-only address without signing (no key required)
+- [x] `getTreasuryBalance(chainId)` — native balance of treasury address
+- [x] `sendNative(to, amountWei, chainId)` — send ETH/MATIC from treasury
+- [x] `sendERC20(to, tokenAddress, amountWei, chainId)` — send USDC via `erc20Abi.transfer()`
+- [x] Guard: throws if `TREASURY_PRIVATE_KEY` not set
 
-### `src/lib/treasury.ts` (new file)
-
-- [ ] Create viem `walletClient` from `TREASURY_PRIVATE_KEY` + Alchemy RPC
-- [ ] `sendNative(to, amountWei, chainId)` — send ETH/MATIC from treasury to user
-- [ ] `sendERC20(to, tokenAddress, amountWei, chainId)` — send USDC via ERC-20 `transfer()`
-- [ ] `getTreasuryBalance(chainId)` — check native + USDC balance before sending
-- [ ] Guard: throw if `TREASURY_PRIVATE_KEY` is not set (fail at startup, not at runtime)
-
-### `src/app/api/transactions/[id]/route.ts` (new file)
-
-- [ ] `GET /api/transactions/:id` — return single transaction from DB by ID
-- [ ] If `status === "pending"` → call Alchemy RPC `getTransactionReceipt(txHash, chainId)`
-  - Receipt + success → update DB to `"completed"`, return `"completed"`
-  - Receipt + reverted → update DB to `"failed"`, return `"failed"`
-  - No receipt → return `"pending"` (keep polling)
-- [ ] Return `404` if transaction not found
-- [ ] For bridge transactions: also check CCIP message status (Phase 4)
+### `src/app/api/transactions/[id]/route.ts`
+- [x] `GET /api/transactions/:id` — returns single transaction from DB
+- [x] If `status === "pending"` + `txHash` + `metadata.chainId` → calls `getTransactionReceipt`
+  - success → DB updated to `"completed"`, returned immediately
+  - reverted → DB updated to `"failed"`, returned immediately
+  - no receipt yet → silently continues, returns `"pending"` (caller keeps polling)
+- [x] Returns `404` if not found
 
 ---
 
