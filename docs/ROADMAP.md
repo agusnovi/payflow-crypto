@@ -102,36 +102,21 @@ Layer 3 — Feature Execution (per fitur, setelah Layer 1+2 selesai)
 - [x] Create Onramp page (`src/app/onramp/page.tsx`)
 - [x] Create Transaction History page + `GET /api/transactions` route + `TransactionTable`
 
-### Testnet Updates (TODO — do after Layer 1 + Layer 2)
+### Testnet Updates ✅ Done
 
-> Depends on: Phase 1 testnet updates (ChainId + chains.ts) AND `src/lib/treasury.ts`.
-
-- [ ] `POST /api/onramp/quote` — update `chainId` Zod enum to accept testnet IDs (`11155111`, `84532`, `421614`, `80002`)
-  - Restrict to testnet chains only for execution (mainnet chainIds rejected at execute step)
-
-- [ ] `POST /api/onramp/execute` — replace simulation with real treasury send:
-  - Remove `cryptoAmount` from request body (server recalculates, never trusts frontend)
-  - Remove `randomBytes` txHash generation
-  - Update `chainId` Zod enum to testnet IDs only
-  - Call `treasury.sendNative(walletAddress, amount, chainId)` for ETH
-  - Call `treasury.sendERC20(walletAddress, tokenAddress, amount, chainId)` for USDC
-  - Check treasury balance before sending — return `503` if insufficient
-  - Save DB with `status: "pending"` and real `txHash`
-
-- [ ] `OnrampForm` — update chain selector to show testnet chains only (Sepolia, Base Sepolia, etc.)
-  - Show "switch network" prompt if user wallet is on wrong chain
-  - Poll `GET /api/transactions/:id` after confirm until status is final
-  - Show Etherscan testnet link on success
+- [x] `POST /api/onramp/quote` — chainId updated to testnet IDs, token/chain combo validation added
+- [x] `POST /api/onramp/execute` — real treasury send via `sendNative`/`sendERC20`, server recalculates cryptoAmount, $50 cap, status `"pending"`, `chainId` in metadata
+- [x] `OnrampForm` — testnet chains in selector, cryptoAmount removed from request, polling every 3s, three UI states (pending/completed/failed), real explorer links
 
 ### Acceptance Criteria
 - [x] Quote updates when fiat amount changes
 - [x] Fee breakdown shows platform fee + network fee
 - [x] Amount below $10 shows validation error
-- [ ] Chain selector shows testnet chains (Sepolia, Base Sepolia, Arbitrum Sepolia, Polygon Amoy)
-- [ ] Confirming triggers real treasury transaction (not random hash)
-- [ ] txHash verifiable on correct testnet block explorer
-- [ ] Status stays "pending" until on-chain confirmed, then shows "completed"
-- [ ] Transaction appears in history with explorer link
+- [x] Chain selector shows testnet chains (Sepolia, Base Sepolia, Arbitrum Sepolia, Polygon Amoy)
+- [x] Confirming triggers real treasury transaction (not random hash)
+- [x] txHash verifiable on correct testnet block explorer
+- [x] Status stays "pending" until on-chain confirmed, then shows "completed"
+- [x] Transaction appears in history with explorer link
 
 ---
 

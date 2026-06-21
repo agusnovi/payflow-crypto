@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAccount } from "wagmi"
-import { CheckCircle, ExternalLink, RefreshCw } from "lucide-react"
+import { CheckCircle, ExternalLink, RefreshCw, XCircle } from "lucide-react"
 
 import { useOnrampQuote } from "@/hooks/useOnrampQuote"
 import { SUPPORTED_CHAINS } from "@/lib/chains"
@@ -10,23 +10,23 @@ import { formatAmount, formatFiat } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Spinner } from "@/components/ui/Spinner"
-import type { ApiResponse, ChainId, FiatCurrency, OnrampExecuteResult } from "@/types"
+import type { ApiResponse, FiatCurrency, OnrampExecuteResult, TestnetChainId, Transaction } from "@/types"
 
 type CryptoSymbol = "USDC" | "ETH" | "MATIC"
 
-// Which chains support each crypto for onramp
-const CRYPTO_CHAINS: Record<CryptoSymbol, ChainId[]> = {
-  USDC:  [1, 137, 8453, 42161],
-  ETH:   [1, 8453, 42161],
-  MATIC: [137],
+// Testnet chains per crypto (ETH not on Amoy, MATIC only on Amoy)
+const CRYPTO_CHAINS: Record<CryptoSymbol, TestnetChainId[]> = {
+  USDC:  [11155111, 84532, 421614, 80002],
+  ETH:   [11155111, 84532, 421614],
+  MATIC: [80002],
 }
 
 const FIAT_CURRENCIES: FiatCurrency[] = ["USD", "IDR"]
 const CRYPTO_SYMBOLS: CryptoSymbol[] = ["USDC", "ETH", "MATIC"]
 
+// Max $50 USD equivalent to protect testnet treasury
 const FIAT_MIN: Record<FiatCurrency, number> = { USD: 10, IDR: 150_000 }
-const FIAT_MAX: Record<FiatCurrency, number> = { USD: 10_000, IDR: 150_000_000 }
-
+const FIAT_MAX: Record<FiatCurrency, number> = { USD: 50, IDR: 800_000 }
 
 export function OnrampForm() {
   const { address, isConnected } = useAccount()
@@ -35,12 +35,12 @@ export function OnrampForm() {
   const [debouncedAmount, setDebouncedAmount] = useState(0)
   const [fiatCurrency, setFiatCurrency] = useState<FiatCurrency>("USD")
   const [cryptoSymbol, setCryptoSymbol] = useState<CryptoSymbol>("USDC")
-  const [chainId, setChainId] = useState<ChainId>(1)
+  const [chainId, setChainId] = useState<TestnetChainId>(11155111)
   const [isExecuting, setIsExecuting] = useState(false)
   const [executeError, setExecuteError] = useState<string | null>(null)
   const [txResult, setTxResult] = useState<OnrampExecuteResult | null>(null)
 
-  // Debounce amount input — avoids API call on every keystroke
+  // Debounce amount input
   useEffect(() => {
     const timer = setTimeout(() => {
       const n = parseFloat(amountStr.replace(/,/g, ""))
@@ -49,11 +49,36 @@ export function OnrampForm() {
     return () => clearTimeout(timer)
   }, [amountStr])
 
-  // Auto-switch chain when selected crypto doesn't support current chain
+  // Auto-switch chain when crypto changes
   useEffect(() => {
     const supported = CRYPTO_CHAINS[cryptoSymbol]
     setChainId((prev) => (supported.includes(prev) ? prev : supported[0]))
   }, [cryptoSymbol])
+
+  // Poll GET /api/transactions/:id every 3s until confirmed/failed
+  useEffect(() => {
+    if (!txResult || txResult.status !== "pending") return
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/transactions/${txResult.transactionId}`)
+        const json: ApiResponse<Transaction> = await res.json()
+        if (json.success && json.data) {
+          const s = json.data.status
+          if (s === "completed" || s === "failed") {
+            setTxResult((prev) =>
+              prev ? { ...prev, status: s as "completed" | "failed" } : null
+            )
+          }
+        }
+      } catch {
+        // ignore transient polling errors
+      }
+    }
+
+    const interval = setInterval(poll, 3000)
+    return () => clearInterval(interval)
+  }, [txResult?.transactionId, txResult?.status])
 
   const min = FIAT_MIN[fiatCurrency]
   const max = FIAT_MAX[fiatCurrency]
@@ -69,7 +94,7 @@ export function OnrampForm() {
 
   const quoteEnabled = debouncedAmount >= min && debouncedAmount <= max && isConnected
 
-  // ── Quote expiry countdown ───────────────────────────────
+  // ── Quote expiry countdown ────────────────────────────────
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
 
   const {
@@ -86,7 +111,6 @@ export function OnrampForm() {
     walletAddress: address ?? "",
   })
 
-  // Tick down secondsLeft every second when quote is available
   useEffect(() => {
     if (!quote) { setSecondsLeft(null); return }
     const update = () => {
@@ -112,7 +136,6 @@ export function OnrampForm() {
         body: JSON.stringify({
           fiatAmount: quote.fiatAmount,
           fiatCurrency: quote.fiatCurrency,
-          cryptoAmount: quote.cryptoAmount,
           cryptoSymbol: quote.cryptoSymbol,
           chainId: quote.chainId,
           walletAddress: address,
@@ -137,8 +160,66 @@ export function OnrampForm() {
     setExecuteError(null)
   }
 
-  // ── Success state ────────────────────────────────────────
+  // ── Post-execute states ───────────────────────────────────
   if (txResult) {
+    const explorerUrl = `${SUPPORTED_CHAINS[quote!.chainId].blockExplorerUrl}/tx/${txResult.txHash}`
+
+    if (txResult.status === "pending") {
+      return (
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">
+          <Spinner className="h-8 w-8 text-indigo-400" />
+          <div>
+            <h3 className="text-lg font-semibold text-white">Transaction Submitted</h3>
+            <p className="mt-1 text-sm text-gray-400">
+              Waiting for blockchain confirmation…
+            </p>
+          </div>
+          <div className="w-full rounded-lg border border-gray-800 bg-gray-950 p-3 text-left">
+            <p className="text-xs text-gray-500">Tx Hash</p>
+            <p className="mt-0.5 truncate font-mono text-xs text-gray-300">{txResult.txHash}</p>
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
+            >
+              <ExternalLink className="h-3 w-3" />
+              View on {SUPPORTED_CHAINS[quote!.chainId].name} Explorer
+            </a>
+          </div>
+        </div>
+      )
+    }
+
+    if (txResult.status === "failed") {
+      return (
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600/20">
+            <XCircle className="h-7 w-7 text-red-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-white">Transaction Failed</h3>
+            <p className="mt-1 text-sm text-gray-400">
+              The on-chain transaction was reverted.
+            </p>
+          </div>
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
+          >
+            <ExternalLink className="h-3 w-3" />
+            View on Explorer
+          </a>
+          <Button variant="outline" onClick={handleReset} className="w-full">
+            Try Again
+          </Button>
+        </div>
+      )
+    }
+
+    // completed
     return (
       <div className="flex flex-col items-center gap-4 rounded-xl border border-gray-800 bg-gray-900 p-8 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-600/20">
@@ -151,7 +232,8 @@ export function OnrampForm() {
             <span className="font-medium text-white">
               {formatAmount(quote!.cryptoAmount, quote!.cryptoSymbol === "USDC" ? 6 : 18)}{" "}
               {quote!.cryptoSymbol}
-            </span>
+            </span>{" "}
+            on {SUPPORTED_CHAINS[quote!.chainId].name}
           </p>
         </div>
         <div className="w-full rounded-lg border border-gray-800 bg-gray-950 p-3 text-left">
@@ -160,18 +242,13 @@ export function OnrampForm() {
           <p className="mt-2 text-xs text-gray-500">Tx Hash</p>
           <p className="mt-0.5 truncate font-mono text-xs text-gray-300">{txResult.txHash}</p>
           <a
-            href={`${SUPPORTED_CHAINS[quote!.chainId].blockExplorerUrl}/tx/${txResult.txHash}`}
-            onClick={(e) => e.preventDefault()}
-            tabIndex={-1}
-            aria-disabled="true"
-            title="Simulated — not on-chain"
-            className="mt-1.5 inline-flex cursor-not-allowed items-center gap-1 text-xs text-gray-600"
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
           >
             <ExternalLink className="h-3 w-3" />
-            View on Explorer
-            <span className="rounded bg-gray-800 px-1.5 py-0.5 text-xs text-gray-500">
-              Simulated
-            </span>
+            View on {SUPPORTED_CHAINS[quote!.chainId].name} Explorer
           </a>
         </div>
         <Button variant="outline" onClick={handleReset} className="w-full">
@@ -189,7 +266,7 @@ export function OnrampForm() {
       <div className="border-b border-gray-800 px-6 py-4">
         <h2 className="text-base font-semibold text-white">Buy Crypto</h2>
         <p className="mt-0.5 text-xs text-gray-500">
-          Simulated — no real funds will be charged
+          Testnet only — no real funds · max {formatFiat(FIAT_MAX.USD, "USD")} per transaction
         </p>
       </div>
 
@@ -202,7 +279,7 @@ export function OnrampForm() {
               <Input
                 id="fiat-amount"
                 type="number"
-                placeholder={fiatCurrency === "USD" ? "100" : "1,500,000"}
+                placeholder={fiatCurrency === "USD" ? "20" : "300,000"}
                 value={amountStr}
                 onChange={(e) => setAmountStr(e.target.value)}
                 error={amountError ?? undefined}
@@ -220,9 +297,7 @@ export function OnrampForm() {
               className="h-10 rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {FIAT_CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
@@ -243,14 +318,12 @@ export function OnrampForm() {
               className="h-10 flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {CRYPTO_SYMBOLS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
             <select
               value={chainId}
-              onChange={(e) => setChainId(Number(e.target.value) as ChainId)}
+              onChange={(e) => setChainId(Number(e.target.value) as TestnetChainId)}
               className="h-10 flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {supportedChains.map((id) => (
@@ -262,7 +335,7 @@ export function OnrampForm() {
           </div>
           {cryptoSymbol === "MATIC" && (
             <p className="mt-1.5 text-xs text-gray-500">
-              MATIC is only available on Polygon
+              MATIC is only available on Polygon Amoy
             </p>
           )}
         </div>
@@ -301,8 +374,7 @@ export function OnrampForm() {
               <div className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-xs text-gray-500">Exchange rate</span>
                 <span className="text-xs text-gray-300">
-                  1 {quote.cryptoSymbol} ={" "}
-                  {formatFiat(quote.exchangeRate, fiatCurrency)}
+                  1 {quote.cryptoSymbol} = {formatFiat(quote.exchangeRate, fiatCurrency)}
                 </span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5">
@@ -324,7 +396,7 @@ export function OnrampForm() {
                 </span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-xs text-gray-500">Provider</span>
+                <span className="text-xs text-gray-500">Network</span>
                 <div className="flex items-center gap-1.5">
                   {quoteFetching && <RefreshCw className="h-3 w-3 animate-spin text-gray-500" />}
                   <span className="text-xs text-gray-500">{quote.provider}</span>
@@ -342,11 +414,13 @@ export function OnrampForm() {
                     {quoteFetching ? "Fetching…" : "Recalculate"}
                   </button>
                 ) : (
-                  <span className={`text-xs font-medium ${
-                    secondsLeft !== null && secondsLeft <= 10
-                      ? "text-red-400"
-                      : "text-gray-400"
-                  }`}>
+                  <span
+                    className={`text-xs font-medium ${
+                      secondsLeft !== null && secondsLeft <= 10
+                        ? "text-red-400"
+                        : "text-gray-400"
+                    }`}
+                  >
                     {secondsLeft !== null ? `${secondsLeft}s` : "—"}
                   </span>
                 )}
@@ -355,12 +429,10 @@ export function OnrampForm() {
           )}
         </div>
 
-        {/* Error from execute */}
         {executeError && (
           <p className="text-sm text-red-400">{executeError}</p>
         )}
 
-        {/* Confirm button */}
         <Button
           size="lg"
           className="w-full"

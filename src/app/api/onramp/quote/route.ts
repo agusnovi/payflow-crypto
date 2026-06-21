@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
+import { SUPPORTED_CHAINS } from "@/lib/chains"
 import { getTokenPrices } from "@/lib/prices"
-import type { OnrampQuote } from "@/types"
+import type { OnrampQuote, TestnetChainId } from "@/types"
 
 const QuoteSchema = z.object({
   fiatAmount: z.number().min(10, "Minimum amount is 10").max(10000, "Maximum amount is 10,000"),
   fiatCurrency: z.enum(["USD", "IDR"]),
   cryptoSymbol: z.enum(["USDC", "ETH", "MATIC"]),
-  chainId: z.union([z.literal(1), z.literal(137), z.literal(8453), z.literal(42161)]),
+  chainId: z.union([
+    z.literal(11155111),
+    z.literal(84532),
+    z.literal(421614),
+    z.literal(80002),
+  ]),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
 })
 
@@ -34,6 +40,20 @@ export async function POST(request: Request) {
     }
 
     const { fiatAmount, fiatCurrency, cryptoSymbol, chainId } = parsed.data
+
+    // Validate token/chain combo (ETH not on Amoy, MATIC only on Amoy)
+    if (cryptoSymbol === "MATIC" && chainId !== 80002) {
+      return NextResponse.json(
+        { success: false, error: "MATIC is only available on Polygon Amoy." },
+        { status: 400 }
+      )
+    }
+    if (cryptoSymbol === "ETH" && chainId === 80002) {
+      return NextResponse.json(
+        { success: false, error: "ETH is not available on Polygon Amoy." },
+        { status: 400 }
+      )
+    }
 
     // Fetch prices for the requested token + USDC (for USD/IDR rate)
     const symbols = cryptoSymbol === "USDC" ? ["USDC"] : ["USDC", cryptoSymbol]
@@ -93,7 +113,7 @@ export async function POST(request: Request) {
       platformFee,
       networkFee,
       totalFee,
-      provider: "PayFlow Simulated",
+      provider: SUPPORTED_CHAINS[chainId as TestnetChainId].name,
       expiresAt: Math.floor(Date.now() / 1000) + 30,
     }
 
