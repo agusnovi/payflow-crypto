@@ -25,7 +25,7 @@ const FIAT_CURRENCIES: FiatCurrency[] = ["USD", "IDR"]
 const CRYPTO_SYMBOLS: CryptoSymbol[] = ["USDC", "ETH", "MATIC"]
 
 // Max $50 USD equivalent to protect testnet treasury
-const FIAT_MIN: Record<FiatCurrency, number> = { USD: 10, IDR: 150_000 }
+const FIAT_MIN: Record<FiatCurrency, number> = { USD: 1, IDR: 150_000 }
 const FIAT_MAX: Record<FiatCurrency, number> = { USD: 50, IDR: 800_000 }
 
 export function OnrampForm() {
