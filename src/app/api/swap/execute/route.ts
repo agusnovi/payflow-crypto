@@ -1,20 +1,20 @@
-import { randomBytes } from "crypto"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { db } from "@/lib/db"
-import { SUPPORTED_CHAINS, getTokenByAddress } from "@/lib/chains"
-import type { ChainId } from "@/types"
+import { getTokenByAddress } from "@/lib/chains"
+
+const HEX_HASH = /^0x[a-fA-F0-9]{64}$/
 
 const ExecuteSchema = z.object({
   fromToken:     z.string().regex(/^0x[a-fA-F0-9]{40}$/i, "Invalid from token address"),
   toToken:       z.string().regex(/^0x[a-fA-F0-9]{40}$/i, "Invalid to token address"),
   fromAmount:    z.string().regex(/^\d+$/, "fromAmount must be a positive integer string"),
   toAmount:      z.string().regex(/^\d+$/, "toAmount must be a positive integer string"),
-  chainId:       z.union([z.literal(1), z.literal(137), z.literal(8453), z.literal(42161)]),
+  chainId:       z.literal(11155111),  // Swap is Sepolia-only
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
-  slippage:      z.number().min(0.01).max(50).default(0.5),
-  expiresAt:     z.number().int().positive(),
+  txHash:        z.string().regex(HEX_HASH, "Invalid tx hash"),
+  approveTxHash: z.string().regex(HEX_HASH).optional(),
 })
 
 export async function POST(request: Request) {
@@ -29,15 +29,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const { fromToken, toToken, fromAmount, toAmount, chainId, walletAddress, expiresAt } =
-      parsed.data
-
-    if (Math.floor(Date.now() / 1000) > expiresAt) {
-      return NextResponse.json(
-        { success: false, error: "Quote has expired. Please get a new quote." },
-        { status: 400 }
-      )
-    }
+    const {
+      fromToken, toToken, fromAmount, toAmount,
+      chainId, walletAddress, txHash, approveTxHash,
+    } = parsed.data
 
     if (fromToken.toLowerCase() === toToken.toLowerCase()) {
       return NextResponse.json(
@@ -46,23 +41,19 @@ export async function POST(request: Request) {
       )
     }
 
-    const chainName = SUPPORTED_CHAINS[chainId as ChainId].name
-
     const fromSymbol =
-      getTokenByAddress(chainId as ChainId, fromToken)?.symbol ??
+      getTokenByAddress(chainId, fromToken)?.symbol ??
       `${fromToken.slice(0, 6)}…${fromToken.slice(-4)}`
 
     const toSymbol =
-      getTokenByAddress(chainId as ChainId, toToken)?.symbol ??
+      getTokenByAddress(chainId, toToken)?.symbol ??
       `${toToken.slice(0, 6)}…${toToken.slice(-4)}`
-
-    const txHash = `0x${randomBytes(32).toString("hex")}`
 
     const tx = await db.transaction.create({
       data: {
         type: "swap",
-        status: "completed",
-        fromChain: chainName,
+        status: "pending",
+        fromChain: "Sepolia",
         toChain: null,
         fromToken: fromSymbol,
         toToken: toSymbol,
@@ -70,7 +61,10 @@ export async function POST(request: Request) {
         toAmount,
         txHash,
         walletAddress,
-        metadata: JSON.stringify({ chainId }),
+        metadata: JSON.stringify({
+          chainId,
+          ...(approveTxHash ? { approveTxHash } : {}),
+        }),
       },
     })
 
@@ -79,13 +73,14 @@ export async function POST(request: Request) {
       data: {
         transactionId: tx.id,
         txHash,
+        status: "pending" as const,
         createdAt: tx.createdAt.toISOString(),
       },
     })
   } catch (error) {
     console.error("[/api/swap/execute]", error)
     return NextResponse.json(
-      { success: false, error: "Transaction failed. Please try again." },
+      { success: false, error: "Failed to save transaction. Please try again." },
       { status: 500 }
     )
   }

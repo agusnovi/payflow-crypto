@@ -106,6 +106,7 @@ export interface SwapQuote {
   estimatedGasUSD: string
   route: SwapRouteStep[]
   expiresAt: number
+  poolFee?: number  // Uniswap V3 pool fee tier (500 | 3000 | 10000) — Sepolia only
 }
 
 export interface SwapRequest {
