@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { getTokenByAddress } from "@/lib/chains"
 import { getSwapQuote } from "@/lib/oneinch"
+import { getTokenPrices } from "@/lib/prices"
 import { getUniswapQuote } from "@/lib/uniswap"
 import type { ChainId, SwapQuote } from "@/types"
 
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
       )
     }
 
-    // ── Sepolia: use Uniswap V3 Quoter V2 ─────────────────────────────────────
+    // ── Sepolia: Uniswap V3 Quoter V2, fallback to CoinGecko price ───────────
     if (chainId === 11155111) {
       const fromToken = getTokenByAddress(11155111, src)
       const toToken   = getTokenByAddress(11155111, dst)
@@ -63,23 +64,64 @@ export async function GET(request: Request) {
         )
       }
 
-      const result = await getUniswapQuote(src, dst, BigInt(amount), toToken.decimals)
+      // Try real Uniswap Quoter first
+      try {
+        const result = await getUniswapQuote(src, dst, BigInt(amount), toToken.decimals)
 
-      const quote: SwapQuote = {
+        const quote: SwapQuote = {
+          fromToken,
+          toToken,
+          fromAmount: amount,
+          toAmount: result.amountOut.toString(),
+          toAmountFormatted: result.amountOutFormatted,
+          priceImpact: 0,
+          fee: 0,
+          estimatedGasUSD: result.gasEstimate.toString(),
+          route: [{ protocol: "Uniswap V3", portion: 100 }],
+          expiresAt: Math.floor(Date.now() / 1000) + QUOTE_EXPIRY_SECONDS,
+          poolFee: result.poolFee,
+          isSimulated: false,
+        }
+
+        return NextResponse.json({ success: true, data: quote })
+      } catch {
+        // No Uniswap pool — fall back to CoinGecko price ratio
+      }
+
+      // CoinGecko price-based fallback (simulated quote)
+      const prices = await getTokenPrices([fromToken.symbol, toToken.symbol])
+      const fromPriceUSD = prices[fromToken.symbol]?.usd
+      const toPriceUSD   = prices[toToken.symbol]?.usd
+
+      if (!fromPriceUSD || !toPriceUSD) {
+        return NextResponse.json(
+          { success: false, error: "Swap quote unavailable for this pair on Sepolia" },
+          { status: 400 }
+        )
+      }
+
+      const amountInHuman  = Number(amount) / Math.pow(10, fromToken.decimals)
+      const amountOutHuman = amountInHuman * (fromPriceUSD / toPriceUSD)
+      const amountOutWei   = Math.floor(amountOutHuman * Math.pow(10, toToken.decimals))
+      const amountOutFormatted = amountOutHuman
+        .toFixed(toToken.decimals <= 6 ? 2 : 6)
+        .replace(/\.?0+$/, "")
+
+      const simulatedQuote: SwapQuote = {
         fromToken,
         toToken,
         fromAmount: amount,
-        toAmount: result.amountOut.toString(),
-        toAmountFormatted: result.amountOutFormatted,
+        toAmount: amountOutWei.toString(),
+        toAmountFormatted: amountOutFormatted,
         priceImpact: 0,
         fee: 0,
-        estimatedGasUSD: result.gasEstimate.toString(),
-        route: [{ protocol: "Uniswap V3", portion: 100 }],
+        estimatedGasUSD: "0",
+        route: [{ protocol: "CoinGecko Price (Simulated)", portion: 100 }],
         expiresAt: Math.floor(Date.now() / 1000) + QUOTE_EXPIRY_SECONDS,
-        poolFee: result.poolFee,
+        isSimulated: true,
       }
 
-      return NextResponse.json({ success: true, data: quote })
+      return NextResponse.json({ success: true, data: simulatedQuote })
     }
 
     // ── Mainnet: use 1inch ────────────────────────────────────────────────────

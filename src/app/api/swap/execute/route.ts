@@ -11,11 +11,15 @@ const ExecuteSchema = z.object({
   toToken:       z.string().regex(/^0x[a-fA-F0-9]{40}$/i, "Invalid to token address"),
   fromAmount:    z.string().regex(/^\d+$/, "fromAmount must be a positive integer string"),
   toAmount:      z.string().regex(/^\d+$/, "toAmount must be a positive integer string"),
-  chainId:       z.literal(11155111),  // Swap is Sepolia-only
+  chainId:       z.literal(11155111),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
-  txHash:        z.string().regex(HEX_HASH, "Invalid tx hash"),
+  txHash:        z.string().regex(HEX_HASH, "Invalid tx hash").optional(),
   approveTxHash: z.string().regex(HEX_HASH).optional(),
-})
+  simulated:     z.boolean().optional(),
+}).refine(
+  (d) => d.simulated === true || (typeof d.txHash === "string" && HEX_HASH.test(d.txHash)),
+  { message: "txHash is required for real swaps", path: ["txHash"] }
+)
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +35,7 @@ export async function POST(request: Request) {
 
     const {
       fromToken, toToken, fromAmount, toAmount,
-      chainId, walletAddress, txHash, approveTxHash,
+      chainId, walletAddress, txHash, approveTxHash, simulated,
     } = parsed.data
 
     if (fromToken.toLowerCase() === toToken.toLowerCase()) {
@@ -52,17 +56,18 @@ export async function POST(request: Request) {
     const tx = await db.transaction.create({
       data: {
         type: "swap",
-        status: "pending",
+        status: simulated ? "completed" : "pending",
         fromChain: "Sepolia",
         toChain: null,
         fromToken: fromSymbol,
         toToken: toSymbol,
         fromAmount,
         toAmount,
-        txHash,
+        txHash: txHash ?? null,
         walletAddress,
         metadata: JSON.stringify({
           chainId,
+          ...(simulated ? { simulated: true } : {}),
           ...(approveTxHash ? { approveTxHash } : {}),
         }),
       },
@@ -72,8 +77,8 @@ export async function POST(request: Request) {
       success: true,
       data: {
         transactionId: tx.id,
-        txHash,
-        status: "pending" as const,
+        txHash: txHash ?? null,
+        status: simulated ? ("completed" as const) : ("pending" as const),
         createdAt: tx.createdAt.toISOString(),
       },
     })

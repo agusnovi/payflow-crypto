@@ -106,7 +106,8 @@ export interface SwapQuote {
   estimatedGasUSD: string
   route: SwapRouteStep[]
   expiresAt: number
-  poolFee?: number  // Uniswap V3 pool fee tier (500 | 3000 | 10000) — Sepolia only
+  poolFee?: number       // Uniswap V3 pool fee tier (500 | 3000 | 10000) — Sepolia only
+  isSimulated?: boolean  // true when Uniswap pool unavailable; price from CoinGecko
 }
 
 export interface SwapRequest {

@@ -1,14 +1,14 @@
-import { formatUnits } from "viem"
+import { formatUnits, getAddress } from "viem"
 
 import { NATIVE_TOKEN_ADDRESS } from "@/lib/chains"
 import { getPublicClient } from "@/lib/treasury"
 
-// ── Sepolia contract addresses ────────────────────────────────────────────────
+// ── Sepolia contract addresses (getAddress computes correct EIP-55 checksum) ─
 
-export const SWAP_ROUTER_02 = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E" as const
-export const QUOTER_V2      = "0xEd1f6473345F45b75833fd55D191EF2c763f4884" as const
-export const WETH9_SEPOLIA  = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14" as const
-export const USDC_SEPOLIA   = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as const
+export const SWAP_ROUTER_02 = getAddress("0x3bfa4769fb09eefc5a80d6e87c3b9c650f7ae48e")
+export const QUOTER_V2      = getAddress("0xed1f6473345f45b75833fd55d191ef2c763f4884")
+export const WETH9_SEPOLIA  = getAddress("0xfff9976782d46cc05630d1f6ebab18b2324d6b14")
+export const USDC_SEPOLIA   = getAddress("0x1c7d4b196cb0c7b01d743fbc6116a902379c7238")
 
 // ── ABIs (minimal) ────────────────────────────────────────────────────────────
 

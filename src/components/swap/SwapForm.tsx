@@ -39,7 +39,7 @@ type SwapPhase = null | "approving" | "swapping"
 
 interface SwapExecuteResult {
   transactionId: string
-  txHash: `0x${string}`
+  txHash: `0x${string}` | null
   status: "pending" | "completed" | "failed"
 }
 
@@ -54,6 +54,7 @@ function toWei(amount: string, decimals: number): string | null {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function isNativeETH(address: string): boolean {
   return address.toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase()
 }
@@ -216,13 +217,34 @@ export function SwapForm() {
     setSwapError(null)
 
     try {
+      // ── Simulated path: no on-chain interaction ────────────
+      if (quote.isSimulated) {
+        const res = await fetch("/api/swap/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromToken: quote.fromToken.address,
+            toToken: quote.toToken.address,
+            fromAmount: quote.fromAmount,
+            toAmount: quote.toAmount,
+            chainId: SEPOLIA_CHAIN_ID,
+            walletAddress: address,
+            simulated: true,
+          }),
+        })
+        const json: ApiResponse<SwapExecuteResult> = await res.json()
+        if (!json.success || !json.data) throw new Error(json.error ?? "Swap failed")
+        setTxResult({ transactionId: json.data.transactionId, txHash: null, status: "completed" })
+        return
+      }
+
+      // ── Real path: approve (if needed) + Uniswap swap ─────
       const amountIn = BigInt(quote.fromAmount)
       const minOut   = BigInt(Math.floor(Number(quote.toAmount) * (1 - slippage / 100)))
       const poolFee  = quote.poolFee ?? 3000
       let approveTxHash: `0x${string}` | undefined
       let swapTxHash: `0x${string}`
 
-      // Step 1: Approve USDC allowance if needed
       if (isUSDCFrom) {
         const currentAllowance = usdcAllowance ?? BigInt(0)
         if (currentAllowance < amountIn) {
@@ -233,17 +255,13 @@ export function SwapForm() {
             functionName: "approve",
             args: [SWAP_ROUTER_02, amountIn],
           })
-          // Wait for approve to be mined before proceeding
           await waitForTransactionReceipt(config, { hash: approveTxHash })
           await refetchAllowance()
           setSwapPhase("swapping")
         }
       }
 
-      // Step 2: Execute swap
       if (isUSDCFrom) {
-        // USDC → ETH: multicall(exactInputSingle → unwrapWETH9)
-        // Send WETH to router first, then unwrap to native ETH for recipient
         const exactInputData = encodeFunctionData({
           abi: swapRouterAbi,
           functionName: "exactInputSingle",
@@ -251,7 +269,7 @@ export function SwapForm() {
             tokenIn:           USDC_SEPOLIA,
             tokenOut:          WETH9_SEPOLIA,
             fee:               poolFee,
-            recipient:         SWAP_ROUTER_02, // router holds WETH for unwrapping
+            recipient:         SWAP_ROUTER_02,
             amountIn,
             amountOutMinimum:  minOut,
             sqrtPriceLimitX96: BigInt(0),
@@ -269,7 +287,6 @@ export function SwapForm() {
           args: [[exactInputData, unwrapData]],
         })
       } else {
-        // ETH → USDC: exactInputSingle with msg.value (router auto-wraps to WETH)
         swapTxHash = await writeContractAsync({
           address: SWAP_ROUTER_02,
           abi: swapRouterAbi,
@@ -287,7 +304,6 @@ export function SwapForm() {
         })
       }
 
-      // Step 3: Save to DB (server only records — no server-side execution)
       const res = await fetch("/api/swap/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -305,7 +321,6 @@ export function SwapForm() {
 
       const json: ApiResponse<SwapExecuteResult> = await res.json()
       if (!json.success || !json.data) throw new Error(json.error ?? "Swap failed")
-
       setTxResult({ transactionId: json.data.transactionId, txHash: swapTxHash, status: "pending" })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Swap failed"
@@ -323,7 +338,9 @@ export function SwapForm() {
 
   // ── Post-submit states ────────────────────────────────────
   if (txResult && quote) {
-    const explorerUrl = `${SUPPORTED_CHAINS[SEPOLIA_CHAIN_ID].blockExplorerUrl}/tx/${txResult.txHash}`
+    const explorerUrl = txResult.txHash
+      ? `${SUPPORTED_CHAINS[SEPOLIA_CHAIN_ID].blockExplorerUrl}/tx/${txResult.txHash}`
+      : null
 
     if (txResult.status === "pending") {
       return (
@@ -331,22 +348,22 @@ export function SwapForm() {
           <Spinner className="h-8 w-8 text-indigo-400" />
           <div>
             <h3 className="text-lg font-semibold text-white">Swap Submitted</h3>
-            <p className="mt-1 text-sm text-gray-400">
-              Waiting for blockchain confirmation…
-            </p>
+            <p className="mt-1 text-sm text-gray-400">Waiting for blockchain confirmation…</p>
           </div>
           <div className="w-full rounded-lg border border-gray-800 bg-gray-950 p-3 text-left">
             <p className="text-xs text-gray-500">Tx Hash</p>
             <p className="mt-0.5 truncate font-mono text-xs text-gray-300">{txResult.txHash}</p>
-            <a
-              href={explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1.5 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
-            >
-              <ExternalLink className="h-3 w-3" />
-              View on Sepolia Explorer
-            </a>
+            {explorerUrl && (
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View on Sepolia Explorer
+              </a>
+            )}
           </div>
         </div>
       )
@@ -362,15 +379,17 @@ export function SwapForm() {
             <h3 className="text-lg font-semibold text-white">Swap Failed</h3>
             <p className="mt-1 text-sm text-gray-400">The transaction was reverted on-chain.</p>
           </div>
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
-          >
-            <ExternalLink className="h-3 w-3" />
-            View on Explorer
-          </a>
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
+            >
+              <ExternalLink className="h-3 w-3" />
+              View on Explorer
+            </a>
+          )}
           <Button variant="outline" onClick={handleReset} className="w-full">Try Again</Button>
         </div>
       )
@@ -383,25 +402,35 @@ export function SwapForm() {
           <CheckCircle className="h-7 w-7 text-green-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Swap Successful</h3>
+          <h3 className="text-lg font-semibold text-white">
+            {quote.isSimulated ? "Swap Simulated" : "Swap Successful"}
+          </h3>
           <p className="mt-1 text-sm text-gray-400">
-            {quote.toAmountFormatted} {quote.toToken.symbol} arrived in your wallet
+            {quote.isSimulated
+              ? `Simulated: ${quote.toAmountFormatted} ${quote.toToken.symbol} (CoinGecko price, no on-chain tx)`
+              : `${quote.toAmountFormatted} ${quote.toToken.symbol} arrived in your wallet`}
           </p>
         </div>
         <div className="w-full rounded-lg border border-gray-800 bg-gray-950 p-3 text-left">
           <p className="text-xs text-gray-500">Transaction ID</p>
           <p className="mt-0.5 font-mono text-xs text-gray-300">{txResult.transactionId}</p>
-          <p className="mt-2 text-xs text-gray-500">Tx Hash</p>
-          <p className="mt-0.5 truncate font-mono text-xs text-gray-300">{txResult.txHash}</p>
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1.5 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
-          >
-            <ExternalLink className="h-3 w-3" />
-            View on Sepolia Explorer
-          </a>
+          {txResult.txHash && (
+            <>
+              <p className="mt-2 text-xs text-gray-500">Tx Hash</p>
+              <p className="mt-0.5 truncate font-mono text-xs text-gray-300">{txResult.txHash}</p>
+            </>
+          )}
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300"
+            >
+              <ExternalLink className="h-3 w-3" />
+              View on Sepolia Explorer
+            </a>
+          )}
         </div>
         <Button variant="outline" onClick={handleReset} className="w-full">New Swap</Button>
       </div>
@@ -575,6 +604,14 @@ export function SwapForm() {
 
             {quote && (
               <div className="divide-y divide-gray-800">
+                {quote.isSimulated && (
+                  <div className="flex items-center gap-2 px-4 py-2.5">
+                    <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
+                    <span className="text-yellow-400">
+                      Simulated price — no Uniswap pool on Sepolia. Price from CoinGecko.
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between px-4 py-2.5">
                   <span className="text-gray-500">Rate</span>
                   <span className="text-gray-300">
@@ -679,10 +716,12 @@ export function SwapForm() {
                           : swapPhase === "approving"
                             ? "Approving USDC… (1/2)"
                             : swapPhase === "swapping"
-                              ? "Swapping… (2/2)"
-                              : isUSDCFrom && usdcAllowance !== undefined && usdcAllowance < BigInt(quote.fromAmount)
-                                ? `Approve + Swap ${amountStr} ${fromToken.symbol}`
-                                : `Swap ${amountStr} ${fromToken.symbol} → ${quote.toAmountFormatted} ${toToken.symbol}`}
+                              ? quote.isSimulated ? "Simulating…" : "Swapping… (2/2)"
+                              : quote.isSimulated
+                                ? `Simulate Swap ${amountStr} ${fromToken.symbol} → ${quote.toAmountFormatted} ${toToken.symbol}`
+                                : isUSDCFrom && usdcAllowance !== undefined && usdcAllowance < BigInt(quote.fromAmount)
+                                  ? `Approve + Swap ${amountStr} ${fromToken.symbol}`
+                                  : `Swap ${amountStr} ${fromToken.symbol} → ${quote.toAmountFormatted} ${toToken.symbol}`}
           </Button>
         )}
       </div>
