@@ -2,14 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   webpack: (config) => {
-    // These packages are optional peer deps or React Native deps that don't
-    // exist in a browser/Node.js environment — tell webpack to ignore them
-    config.externals.push(
-      "@react-native-async-storage/async-storage",
-      "pino-pretty",
-      "lokijs",
-      "encoding",
-    )
+    // Replace missing optional/React Native deps with empty modules.
+    // Setting alias to false tells webpack to stub them out silently.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@react-native-async-storage/async-storage": false,
+      "pino-pretty": false,
+      "lokijs": false,
+      "encoding": false,
+    }
     return config
   },
 };
